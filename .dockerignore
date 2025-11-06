@@ -1,7 +1,20 @@
+# Ignore development files and folders
 node_modules
-dist
 npm-debug.log
 .DS_Store
-docs
+dist
+
+# Ignore documentation and local config
 README.md
+docs/
+
+# Ignore the source TypeScript files for the server in the final image,
+# as we only need the compiled JavaScript in the 'dist' folder.
+server/
+*.tsx
+*.ts
 *.txt
+*.json
+*.html
+components/
+services/
