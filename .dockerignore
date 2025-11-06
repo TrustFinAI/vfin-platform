@@ -1,0 +1,11 @@
+# Ignore dependencies and build output, which are generated in the container
+node_modules
+dist
+
+# Ignore documentation and local logs
+docs
+*.log
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
