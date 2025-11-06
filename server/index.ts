@@ -1,14 +1,23 @@
-// Use proper ES module import for Express
-// FIX: Alias Request and Response to avoid name collisions with global DOM types,
-// which can occur when a server-side project's tsconfig includes the "dom" lib.
-// This resolves a cascade of type errors.
-import express, { Request as ExpressRequest, Response as ExpressResponse } from 'express';
+
+// Use proper ES module import for Express and pg
+// FIX: Use standard Request and Response types from express to resolve type errors.
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
-import pg from 'pg'; // Import the pg library for PostgreSQL
+import { Pool } from 'pg'; // FIX: Correctly import the Pool class from pg
+
+// --- Environment Variable Validation ---
+// This is a critical check to ensure the service doesn't crash silently.
+// It confirms that all necessary secrets and configurations are available.
+const requiredEnvVars = ['API_KEY', 'DB_PASSWORD', 'CLOUD_SQL_CONNECTION_NAME'];
+for (const envVar of requiredEnvVars) {
+    if (!process.env[envVar]) {
+        console.error(`FATAL ERROR: Environment variable ${envVar} is not set.`);
+        process.exit(1); // Exit gracefully if a variable is missing
+    }
+}
 
 // Types copied from ../types.ts to avoid bringing in React/DOM definitions
-// into the server environment, which can cause type conflicts with Express.
 export interface ExpenseItem {
   name: string;
   amount: number;
@@ -53,26 +62,23 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 app.use(cors());
-// The type collision fix above also resolves the error that was occurring on this line.
 app.use(express.json());
 
 // --- Database Connection ---
-// This configuration correctly uses the secure Unix socket provided by Cloud Run
-// when a Cloud SQL connection is configured in the service settings.
-const dbPool = new pg.Pool({
-    user: 'postgres', // Default user for Cloud SQL PostgreSQL
-    database: 'vfin_data', // The database name we created
-    password: process.env.DB_PASSWORD, // Injected from Secret Manager
-    // The host is the path to the Unix socket for the connected Cloud SQL instance
+const dbPool = new Pool({
+    user: 'postgres',
+    database: 'vfin_data',
+    password: process.env.DB_PASSWORD,
     host: `/cloudsql/${process.env.CLOUD_SQL_CONNECTION_NAME}`,
     port: 5432,
 });
 
-// Test DB Connection Endpoint: We can use this after deployment to confirm everything works.
-app.get('/api/db-test', async (req: ExpressRequest, res: ExpressResponse) => {
+// Test DB Connection Endpoint
+// FIX: Use standard Request and Response types.
+app.get('/api/db-test', async (req: Request, res: Response) => {
     try {
         const client = await dbPool.connect();
-        const result = await client.query('SELECT NOW()'); // Query the current time from the DB
+        const result = await client.query('SELECT NOW()');
         client.release();
         res.json({ message: 'Database connection successful!', time: result.rows[0].now });
     } catch (error: any) {
@@ -84,7 +90,7 @@ app.get('/api/db-test', async (req: ExpressRequest, res: ExpressResponse) => {
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
-// Schemas for AI responses, moved from the frontend to the backend.
+// Schemas for AI responses
 const financialDataSchema = {
     type: Type.OBJECT,
     properties: {
@@ -161,7 +167,8 @@ const healthScoreSchema = {
 };
 
 // API Endpoint to parse statements
-app.post('/api/parse', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Use standard Request and Response types.
+app.post('/api/parse', async (req: Request, res: Response) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -211,7 +218,8 @@ app.post('/api/parse', async (req: ExpressRequest, res: ExpressResponse) => {
 });
 
 // API Endpoint for financial analysis
-app.post('/api/analyze', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Use standard Request and Response types.
+app.post('/api/analyze', async (req: Request, res: Response) => {
     const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
     if (!currentData) {
         return res.status(400).json({ error: 'Missing current financial data.' });
@@ -288,7 +296,8 @@ app.post('/api/analyze', async (req: ExpressRequest, res: ExpressResponse) => {
 });
 
 // API Endpoint for health score
-app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Use standard Request and Response types.
+app.post('/api/health-score', async (req: Request, res: Response) => {
     const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
     if (!currentData) {
         return res.status(400).json({ error: 'Missing current financial data.' });
@@ -349,7 +358,8 @@ app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) 
 });
 
 // API Endpoint for KPI explanations
-app.post('/api/explain-kpi', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Use standard Request and Response types.
+app.post('/api/explain-kpi', async (req: Request, res: Response) => {
     const { kpiName, kpiValue } = req.body;
      if (!kpiName || !kpiValue) {
         return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
