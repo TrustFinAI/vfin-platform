@@ -1,25 +1,15 @@
 
-// FIX: Use import for express to resolve TypeScript type errors for Request and Response.
-import express, { Request, Response } from 'express';
+// Use require for all modules to ensure consistent CommonJS behavior.
+const express = require('express');
 const cors = require('cors');
 const { GoogleGenAI, Type } = require("@google/genai");
 const { Pool } = require('pg');
 
-console.log("Server is starting up...");
+// Define interfaces for TypeScript type checking. These do not affect runtime.
+// This ensures that even with `require`, we get strong type safety.
+// FIX: Using `import type` for Express Request and Response to ensure correct type resolution.
+import type { Request, Response } from 'express';
 
-// --- Environment Variable Validation ---
-console.log("Validating environment variables...");
-const requiredEnvVars = ['API_KEY', 'DB_PASSWORD'];
-for (const envVar of requiredEnvVars) {
-    if (!process.env[envVar]) {
-        console.error(`FATAL ERROR: Environment variable ${envVar} is not set. The service will exit.`);
-        process.exit(1);
-    }
-}
-console.log("All required environment variables are present.");
-
-// --- Type Definitions (isolated from frontend) ---
-// These are interfaces for type-checking and don't affect runtime.
 export interface ExpenseItem {
   name: string;
   amount: number;
@@ -59,6 +49,20 @@ export interface AiAnalysisData {
     recommendations: string[];
 }
 
+
+console.log("Server is starting up...");
+
+// --- Environment Variable Validation ---
+console.log("Validating environment variables...");
+const requiredEnvVars = ['API_KEY', 'DB_PASSWORD'];
+for (const envVar of requiredEnvVars) {
+    if (!process.env[envVar]) {
+        console.error(`FATAL ERROR: Environment variable ${envVar} is not set. The service will exit.`);
+        process.exit(1);
+    }
+}
+console.log("All required environment variables are present.");
+
 const app = express();
 const port = process.env.PORT || 8080;
 
@@ -87,7 +91,6 @@ try {
 // --- API Endpoints ---
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
-// FIX: Use imported Request and Response types.
 app.get('/api/db-test', async (req: Request, res: Response) => {
     try {
         const client = await dbPool.connect();
@@ -175,7 +178,6 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
-// FIX: Use imported Request and Response types.
 app.post('/api/parse', async (req: Request, res: Response) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
@@ -195,7 +197,6 @@ app.post('/api/parse', async (req: Request, res: Response) => {
     }
 });
 
-// FIX: Use imported Request and Response types.
 app.post('/api/analyze', async (req: Request, res: Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
@@ -213,7 +214,6 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
     }
 });
 
-// FIX: Use imported Request and Response types.
 app.post('/api/health-score', async (req: Request, res: Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
@@ -231,7 +231,6 @@ app.post('/api/health-score', async (req: Request, res: Response) => {
     }
 });
 
-// FIX: Use imported Request and Response types.
 app.post('/api/explain-kpi', async (req: Request, res: Response) => {
     const { kpiName, kpiValue } = req.body;
     if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
@@ -248,7 +247,7 @@ app.post('/api/explain-kpi', async (req: Request, res: Response) => {
 console.log(`Attempting to listen on port ${port}...`);
 app.listen(Number(port), () => {
     console.log(`Server is alive and listening on port ${port}`);
-}).on('error', (err) => {
+}).on('error', (err: any) => {
     console.error('Failed to start server:', err);
     process.exit(1);
 });
