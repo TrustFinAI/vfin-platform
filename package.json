@@ -2,11 +2,11 @@
   "name": "vfin-backend",
   "version": "1.0.0",
   "description": "Backend server for the VFIN CPA Dashboard",
-  "main": "server/index.ts",
+  "main": "dist/index.js",
   "scripts": {
     "start": "ts-node server/index.ts",
     "build": "tsc -p server/tsconfig.json",
-    "start:prod": "node dist/server/index.js"
+    "start:prod": "node dist/index.js"
   },
   "dependencies": {
     "@google/genai": "^1.27.0",
