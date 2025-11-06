@@ -1,7 +1,7 @@
 import { ParsedFinancialData, AiAnalysisData, FinancialHealthScore, ClientProfile } from '../types';
 
-// This URL will be replaced with your live backend URL from Cloud Run after deployment.
-const API_BASE_URL = 'https://YOUR_BACKEND_URL_WILL_GO_HERE';
+// This URL is now the live backend URL from Cloud Run.
+const API_BASE_URL = 'https://vfin-backend-159586360865.us-central1.run.app';
 
 const handleApiResponse = async <T,>(response: Response): Promise<T> => {
     if (!response.ok) {
