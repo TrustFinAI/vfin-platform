@@ -1,10 +1,12 @@
-
 // Use proper ES module import for Express and pg
-// FIX: Changed express import to a default import to fix type resolution issues for express middleware and request/response objects.
-import express from 'express';
+// FIX: Changed import to namespace import to avoid type conflicts with global DOM types.
+import * as express from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
-import { Pool } from 'pg';
+// FIX: Changed import to be compatible with the CommonJS 'pg' module
+// This was the root cause of the "failed to start" error.
+import pg from 'pg';
+const { Pool } = pg;
 
 // --- Environment Variable Validation ---
 // This is a critical check to ensure the service doesn't crash silently.
@@ -61,11 +63,10 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 app.use(cors());
+// FIX: Using express.json() from the namespace import to fix type resolution.
 app.use(express.json());
 
 // --- Database Connection ---
-// FIX: Hardcode the connection name. The Cloud Run UI "Connections" tab does not
-// set an environment variable, so we provide the value directly to the code.
 const connectionName = 'vfin-prod-instance:us-central1:vfin-prod-db';
 
 const dbPool = new Pool({
@@ -77,7 +78,7 @@ const dbPool = new Pool({
 });
 
 // Test DB Connection Endpoint
-// FIX: Used express.Request and express.Response to ensure correct types from express are used, avoiding conflicts with global DOM types.
+// FIX: Use express.Request and express.Response to ensure correct types are used.
 app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
     try {
         const client = await dbPool.connect();
@@ -170,7 +171,7 @@ const healthScoreSchema = {
 };
 
 // API Endpoint to parse statements
-// FIX: Used express.Request and express.Response to ensure correct types from express are used, avoiding conflicts with global DOM types.
+// FIX: Use express.Request and express.Response to ensure correct types are used.
 app.post('/api/parse', async (req: express.Request, res: express.Response) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
@@ -221,7 +222,7 @@ app.post('/api/parse', async (req: express.Request, res: express.Response) => {
 });
 
 // API Endpoint for financial analysis
-// FIX: Used express.Request and express.Response to ensure correct types from express are used, avoiding conflicts with global DOM types.
+// FIX: Use express.Request and express.Response to ensure correct types are used.
 app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
     if (!currentData) {
@@ -299,7 +300,7 @@ app.post('/api/analyze', async (req: express.Request, res: express.Response) => 
 });
 
 // API Endpoint for health score
-// FIX: Used express.Request and express.Response to ensure correct types from express are used, avoiding conflicts with global DOM types.
+// FIX: Use express.Request and express.Response to ensure correct types are used.
 app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
     if (!currentData) {
@@ -361,7 +362,7 @@ app.post('/api/health-score', async (req: express.Request, res: express.Response
 });
 
 // API Endpoint for KPI explanations
-// FIX: Used express.Request and express.Response to ensure correct types from express are used, avoiding conflicts with global DOM types.
+// FIX: Use express.Request and express.Response to ensure correct types are used.
 app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
     const { kpiName, kpiValue } = req.body;
      if (!kpiName || !kpiValue) {
