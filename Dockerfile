@@ -1,23 +1,29 @@
-# Use an official Node.js runtime as a parent image
-FROM node:20-slim
-
-# Set the working directory in the container
+# Stage 1: Build the TypeScript code
+FROM node:18-slim AS builder
 WORKDIR /app
 
-# Copy package.json and install dependencies
-# Copying this first leverages Docker layer caching
+# Copy all necessary files
 COPY package.json ./
+COPY server/tsconfig.json ./server/tsconfig.json
+COPY server/index.ts ./server/index.ts
+
+# Install dependencies and build the server
 RUN npm install
-
-# Copy the rest of the application's source code
-COPY . .
-
-# Build the TypeScript server code into JavaScript
 RUN npm run build
 
-# Make port 8080 available to the world outside this container
-# Cloud Run will automatically use this port
+# Stage 2: Create the final production image
+FROM node:18-slim
+WORKDIR /app
+
+# Copy only production dependencies from the builder stage
+COPY --from=builder /app/package.json ./package.json
+RUN npm install --omit=dev
+
+# Copy the compiled JavaScript code from the builder stage
+COPY --from=builder /app/dist ./dist
+
+# Expose the port the app runs on
 EXPOSE 8080
 
-# Define the command to run the app
+# The command to start the server in production
 CMD ["npm", "run", "start:prod"]
