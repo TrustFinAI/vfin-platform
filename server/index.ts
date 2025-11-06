@@ -1,19 +1,23 @@
 
-// Fix: Changed import to default express object to resolve type ambiguities.
+
+// Fix: Changed import to only use the default export to avoid type ambiguity.
 import express from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
-// CORRECT IMPORT: Use a named import for the Pool class. This was the cause of the crash.
-import { Pool } from 'pg';
 
-console.log("Server starting up...");
+// This specific import style is more robust for libraries like 'pg' that have a complex export structure.
+// This is the key change to prevent the startup crash.
+import pg from 'pg';
+const { Pool } = pg;
+
+console.log("Server is starting up...");
 
 // --- Environment Variable Validation ---
 console.log("Validating environment variables...");
 const requiredEnvVars = ['API_KEY', 'DB_PASSWORD'];
 for (const envVar of requiredEnvVars) {
     if (!process.env[envVar]) {
-        console.error(`FATAL ERROR: Environment variable ${envVar} is not set. Exiting.`);
+        console.error(`FATAL ERROR: Environment variable ${envVar} is not set. The service will exit.`);
         process.exit(1);
     }
 }
@@ -63,16 +67,15 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 app.use(cors());
-// Fix: Using express.json() now works as the express object types are correctly resolved.
 app.use(express.json());
 
 // --- Database Connection ---
-let dbPool: Pool;
+let dbPool: pg.Pool; // Use the namespace to be explicit
 try {
     console.log("Initializing database connection pool...");
     const connectionName = 'vfin-prod-instance:us-central1:vfin-prod-db';
     
-    // CORRECT INSTANTIATION: Use the imported Pool class directly.
+    // The instantiation is the same, but the 'Pool' type comes from the robust import.
     dbPool = new Pool({
         user: 'postgres',
         database: 'vfin_data',
@@ -89,17 +92,15 @@ try {
 // --- API Endpoints ---
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
-// Fix: Explicitly use express.Request and express.Response types for handlers.
+// Fix: Use express.Request and express.Response to ensure correct types are used.
 app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
     try {
         const client = await dbPool.connect();
         const result = await client.query('SELECT NOW()');
         client.release();
-        // Fix: res.json is now available on the correctly typed response object.
         res.json({ message: 'Database connection successful!', time: result.rows[0].now });
     } catch (error: any) {
         console.error("Database connection test failed:", error);
-        // Fix: res.status is now available on the correctly typed response object.
         res.status(500).json({ error: "Failed to connect to the database.", details: error.message });
     }
 });
@@ -179,8 +180,8 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
+// Fix: Use express.Request and express.Response to ensure correct types are used.
 app.post('/api/parse', async (req: express.Request, res: express.Response) => {
-    // Fix: req.body is now available on the correctly typed request object.
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -199,6 +200,7 @@ app.post('/api/parse', async (req: express.Request, res: express.Response) => {
     }
 });
 
+// Fix: Use express.Request and express.Response to ensure correct types are used.
 app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
@@ -216,6 +218,7 @@ app.post('/api/analyze', async (req: express.Request, res: express.Response) => 
     }
 });
 
+// Fix: Use express.Request and express.Response to ensure correct types are used.
 app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
@@ -233,6 +236,7 @@ app.post('/api/health-score', async (req: express.Request, res: express.Response
     }
 });
 
+// Fix: Use express.Request and express.Response to ensure correct types are used.
 app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
     const { kpiName, kpiValue } = req.body;
     if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
@@ -247,6 +251,9 @@ app.post('/api/explain-kpi', async (req: express.Request, res: express.Response)
 });
 
 console.log(`Attempting to listen on port ${port}...`);
-app.listen(port, () => {
+app.listen(Number(port), () => {
     console.log(`Server is alive and listening on port ${port}`);
+}).on('error', (err) => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
 });
