@@ -1,15 +1,14 @@
 
 // Use proper ES module import for Express and pg
-// FIX: Use standard Request and Response types from express to resolve type errors.
-import express, { Request, Response } from 'express';
+// FIX: Changed express import to a default import to fix type resolution issues for express middleware and request/response objects.
+import express from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
-import { Pool } from 'pg'; // FIX: Correctly import the Pool class from pg
+import { Pool } from 'pg';
 
 // --- Environment Variable Validation ---
 // This is a critical check to ensure the service doesn't crash silently.
-// It confirms that all necessary secrets and configurations are available.
-const requiredEnvVars = ['API_KEY', 'DB_PASSWORD', 'CLOUD_SQL_CONNECTION_NAME'];
+const requiredEnvVars = ['API_KEY', 'DB_PASSWORD'];
 for (const envVar of requiredEnvVars) {
     if (!process.env[envVar]) {
         console.error(`FATAL ERROR: Environment variable ${envVar} is not set.`);
@@ -65,17 +64,21 @@ app.use(cors());
 app.use(express.json());
 
 // --- Database Connection ---
+// FIX: Hardcode the connection name. The Cloud Run UI "Connections" tab does not
+// set an environment variable, so we provide the value directly to the code.
+const connectionName = 'vfin-prod-instance:us-central1:vfin-prod-db';
+
 const dbPool = new Pool({
     user: 'postgres',
     database: 'vfin_data',
     password: process.env.DB_PASSWORD,
-    host: `/cloudsql/${process.env.CLOUD_SQL_CONNECTION_NAME}`,
+    host: `/cloudsql/${connectionName}`,
     port: 5432,
 });
 
 // Test DB Connection Endpoint
-// FIX: Use standard Request and Response types.
-app.get('/api/db-test', async (req: Request, res: Response) => {
+// FIX: Used express.Request and express.Response to ensure correct types from express are used, avoiding conflicts with global DOM types.
+app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
     try {
         const client = await dbPool.connect();
         const result = await client.query('SELECT NOW()');
@@ -167,8 +170,8 @@ const healthScoreSchema = {
 };
 
 // API Endpoint to parse statements
-// FIX: Use standard Request and Response types.
-app.post('/api/parse', async (req: Request, res: Response) => {
+// FIX: Used express.Request and express.Response to ensure correct types from express are used, avoiding conflicts with global DOM types.
+app.post('/api/parse', async (req: express.Request, res: express.Response) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -218,8 +221,8 @@ app.post('/api/parse', async (req: Request, res: Response) => {
 });
 
 // API Endpoint for financial analysis
-// FIX: Use standard Request and Response types.
-app.post('/api/analyze', async (req: Request, res: Response) => {
+// FIX: Used express.Request and express.Response to ensure correct types from express are used, avoiding conflicts with global DOM types.
+app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
     if (!currentData) {
         return res.status(400).json({ error: 'Missing current financial data.' });
@@ -296,8 +299,8 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
 });
 
 // API Endpoint for health score
-// FIX: Use standard Request and Response types.
-app.post('/api/health-score', async (req: Request, res: Response) => {
+// FIX: Used express.Request and express.Response to ensure correct types from express are used, avoiding conflicts with global DOM types.
+app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
     if (!currentData) {
         return res.status(400).json({ error: 'Missing current financial data.' });
@@ -358,8 +361,8 @@ app.post('/api/health-score', async (req: Request, res: Response) => {
 });
 
 // API Endpoint for KPI explanations
-// FIX: Use standard Request and Response types.
-app.post('/api/explain-kpi', async (req: Request, res: Response) => {
+// FIX: Used express.Request and express.Response to ensure correct types from express are used, avoiding conflicts with global DOM types.
+app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
     const { kpiName, kpiValue } = req.body;
      if (!kpiName || !kpiValue) {
         return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
