@@ -26,8 +26,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
         <div className="text-center space-y-4">
            <OfficialLogo className="w-16 h-16 mx-auto mb-4" />
           <div>
-            <h1 className="text-2xl font-bold text-primary">CPA Financial Health Dashboard</h1>
-            <p className="mt-1 text-sm text-gray-500">Your virtual partner in financial clarity.</p>
+            <h1 className="text-2xl font-bold text-primary">Welcome to VFIN</h1>
+            <p className="mt-1 text-sm text-gray-500">Financial intelligence for your business.</p>
           </div>
         </div>
 
