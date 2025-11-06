@@ -1,14 +1,9 @@
 
-
-// Fix: Changed import to only use the default export to avoid type ambiguity.
-import express from 'express';
-import cors from 'cors';
-import { GoogleGenAI, Type } from "@google/genai";
-
-// This specific import style is more robust for libraries like 'pg' that have a complex export structure.
-// This is the key change to prevent the startup crash.
-import pg from 'pg';
-const { Pool } = pg;
+// FIX: Use import for express to resolve TypeScript type errors for Request and Response.
+import express, { Request, Response } from 'express';
+const cors = require('cors');
+const { GoogleGenAI, Type } = require("@google/genai");
+const { Pool } = require('pg');
 
 console.log("Server is starting up...");
 
@@ -24,6 +19,7 @@ for (const envVar of requiredEnvVars) {
 console.log("All required environment variables are present.");
 
 // --- Type Definitions (isolated from frontend) ---
+// These are interfaces for type-checking and don't affect runtime.
 export interface ExpenseItem {
   name: string;
   amount: number;
@@ -70,12 +66,11 @@ app.use(cors());
 app.use(express.json());
 
 // --- Database Connection ---
-let dbPool: pg.Pool; // Use the namespace to be explicit
+let dbPool;
 try {
     console.log("Initializing database connection pool...");
     const connectionName = 'vfin-prod-instance:us-central1:vfin-prod-db';
     
-    // The instantiation is the same, but the 'Pool' type comes from the robust import.
     dbPool = new Pool({
         user: 'postgres',
         database: 'vfin_data',
@@ -92,8 +87,8 @@ try {
 // --- API Endpoints ---
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
-// Fix: Use express.Request and express.Response to ensure correct types are used.
-app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
+// FIX: Use imported Request and Response types.
+app.get('/api/db-test', async (req: Request, res: Response) => {
     try {
         const client = await dbPool.connect();
         const result = await client.query('SELECT NOW()');
@@ -180,8 +175,8 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
-// Fix: Use express.Request and express.Response to ensure correct types are used.
-app.post('/api/parse', async (req: express.Request, res: express.Response) => {
+// FIX: Use imported Request and Response types.
+app.post('/api/parse', async (req: Request, res: Response) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -193,15 +188,15 @@ app.post('/api/parse', async (req: express.Request, res: express.Response) => {
             contents: `Parse the key figures from the following financial data according to the JSON schema. \n\n${combinedContent}`,
             config: { responseMimeType: "application/json", responseSchema: financialDataSchema },
         });
-        res.json(JSON.parse(response.text ?? '{}') as ParsedFinancialData);
+        res.json(JSON.parse(response.text ?? '{}'));
     } catch (error) {
         console.error("Error in /api/parse:", error);
         res.status(500).json({ error: "Failed to parse financial data." });
     }
 });
 
-// Fix: Use express.Request and express.Response to ensure correct types are used.
-app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
+// FIX: Use imported Request and Response types.
+app.post('/api/analyze', async (req: Request, res: Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Analyze this financial data for a business. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with a 'summary' and 'recommendations'.`;
@@ -211,15 +206,15 @@ app.post('/api/analyze', async (req: express.Request, res: express.Response) => 
             contents: prompt,
             config: { responseMimeType: "application/json", responseSchema: analysisSchema },
         });
-        res.json(JSON.parse(response.text ?? '{}') as AiAnalysisData);
+        res.json(JSON.parse(response.text ?? '{}'));
     } catch (error) {
         console.error("Error in /api/analyze:", error);
         res.status(500).json({ summary: [], recommendations: [] });
     }
 });
 
-// Fix: Use express.Request and express.Response to ensure correct types are used.
-app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
+// FIX: Use imported Request and Response types.
+app.post('/api/health-score', async (req: Request, res: Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Calculate a financial health score based on this data. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with 'score', 'rating', 'strengths', and 'weaknesses'.`;
@@ -229,15 +224,15 @@ app.post('/api/health-score', async (req: express.Request, res: express.Response
             contents: prompt,
             config: { responseMimeType: "application/json", responseSchema: healthScoreSchema },
         });
-        res.json(JSON.parse(response.text ?? '{}') as FinancialHealthScore);
+        res.json(JSON.parse(response.text ?? '{}'));
     } catch (error) {
         console.error("Error in /api/health-score:", error);
         res.status(500).json({ score: 0, rating: "Poor", strengths: [], weaknesses: [] });
     }
 });
 
-// Fix: Use express.Request and express.Response to ensure correct types are used.
-app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
+// FIX: Use imported Request and Response types.
+app.post('/api/explain-kpi', async (req: Request, res: Response) => {
     const { kpiName, kpiValue } = req.body;
     if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
     const prompt = `Explain the KPI "${kpiName}" and a value of "${kpiValue}" simply.`;
