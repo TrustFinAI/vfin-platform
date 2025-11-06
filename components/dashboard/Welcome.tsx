@@ -1,0 +1,83 @@
+import React, { useState, FormEvent } from 'react';
+import { ClientProfile } from '../../types';
+
+interface WelcomeProps {
+    onProfileSave: (profile: ClientProfile) => void;
+}
+
+const Welcome: React.FC<WelcomeProps> = ({ onProfileSave }) => {
+    const [profile, setProfile] = useState<ClientProfile>({
+        industry: 'Technology / SaaS',
+        businessModel: 'B2B',
+        primaryGoal: 'Aggressive Growth'
+    });
+
+    const handleSubmit = (e: FormEvent) => {
+        e.preventDefault();
+        onProfileSave(profile);
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setProfile(prev => ({...prev, [name]: value}));
+    };
+
+    const industries = [
+        'Technology / SaaS', 'Retail / E-commerce', 'Professional Services', 
+        'Healthcare', 'Construction & Real Estate', 'Hospitality', 'Manufacturing', 'Other'
+    ];
+
+    return (
+        <div className="text-center bg-white p-8 sm:p-12 rounded-lg shadow-lg animate-fade-in border-2 border-dashed border-slate-200">
+            <div className="w-16 h-16 bg-primary rounded-lg flex items-center justify-center mx-auto mb-6">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M14 2V8H20" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-primary mb-2">Welcome! Let's Personalize Your Dashboard</h2>
+            <p className="text-base sm:text-lg text-gray-600 mb-8 max-w-3xl mx-auto">
+                Tell us a bit about your business. This context helps our AI provide more tailored and insightful analysis.
+            </p>
+            
+            <form onSubmit={handleSubmit} className="max-w-xl mx-auto space-y-6 text-left">
+                <div>
+                    <label htmlFor="industry" className="block text-sm font-medium text-gray-700">Industry</label>
+                    <select id="industry" name="industry" value={profile.industry} onChange={handleInputChange} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-secondary focus:border-secondary sm:text-sm rounded-md">
+                        {industries.map(ind => <option key={ind}>{ind}</option>)}
+                    </select>
+                </div>
+
+                <div>
+                    <label htmlFor="businessModel" className="block text-sm font-medium text-gray-700">Business Model</label>
+                    <select id="businessModel" name="businessModel" value={profile.businessModel} onChange={handleInputChange} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-secondary focus:border-secondary sm:text-sm rounded-md">
+                        <option>B2B</option>
+                        <option>B2C</option>
+                        <option>D2C</option>
+                        <option>Hybrid</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label htmlFor="primaryGoal" className="block text-sm font-medium text-gray-700">Primary Business Goal</label>
+                    <select id="primaryGoal" name="primaryGoal" value={profile.primaryGoal} onChange={handleInputChange} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-secondary focus:border-secondary sm:text-sm rounded-md">
+                        <option>Aggressive Growth</option>
+                        <option>Maximize Profitability</option>
+                        <option>Maintain Stability</option>
+                    </select>
+                </div>
+
+                <div className="text-center pt-4">
+                     <button
+                        type="submit"
+                        className="w-full md:w-auto inline-flex items-center justify-center px-10 py-4 border border-transparent text-lg font-medium rounded-full shadow-sm text-white bg-accent hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary transition-all transform hover:scale-105"
+                    >
+                        Save & Continue to Upload
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+};
+
+export default Welcome;
