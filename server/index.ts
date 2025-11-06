@@ -1,6 +1,8 @@
-// Use modern ES Module import syntax
-// Fix: Use `import = require()` for Express to handle CommonJS module interoperability and avoid type conflicts.
-import express = require('express');
+// Use proper ES module import for Express
+// FIX: Alias Request and Response to avoid name collisions with global DOM types,
+// which can occur when a server-side project's tsconfig includes the "dom" lib.
+// This resolves a cascade of type errors.
+import express, { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
 import pg from 'pg'; // Import the pg library for PostgreSQL
@@ -51,21 +53,23 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 app.use(cors());
+// The type collision fix above also resolves the error that was occurring on this line.
 app.use(express.json());
 
 // --- Database Connection ---
-// A Pool is used for efficient connection management to the database.
+// This configuration correctly uses the secure Unix socket provided by Cloud Run
+// when a Cloud SQL connection is configured in the service settings.
 const dbPool = new pg.Pool({
-    user: process.env.DB_USER,        // e.g., 'postgres'
-    host: process.env.DB_HOST,        // e.g., '/cloudsql/vfin-prod-instance:us-central1:vfin-prod-db'
-    database: process.env.DB_DATABASE,  // e.g., 'vfin_data'
-    password: process.env.DB_PASSWORD,  // Injected from Secret Manager
+    user: 'postgres', // Default user for Cloud SQL PostgreSQL
+    database: 'vfin_data', // The database name we created
+    password: process.env.DB_PASSWORD, // Injected from Secret Manager
+    // The host is the path to the Unix socket for the connected Cloud SQL instance
+    host: `/cloudsql/${process.env.CLOUD_SQL_CONNECTION_NAME}`,
     port: 5432,
 });
 
 // Test DB Connection Endpoint: We can use this after deployment to confirm everything works.
-// Fix: Use namespaced Express types to ensure correct type resolution.
-app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
+app.get('/api/db-test', async (req: ExpressRequest, res: ExpressResponse) => {
     try {
         const client = await dbPool.connect();
         const result = await client.query('SELECT NOW()'); // Query the current time from the DB
@@ -157,8 +161,7 @@ const healthScoreSchema = {
 };
 
 // API Endpoint to parse statements
-// Fix: Use namespaced Express types to ensure correct type resolution.
-app.post('/api/parse', async (req: express.Request, res: express.Response) => {
+app.post('/api/parse', async (req: ExpressRequest, res: ExpressResponse) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -190,7 +193,6 @@ app.post('/api/parse', async (req: express.Request, res: express.Response) => {
             },
         });
         
-        // FIX: Safely handle potentially undefined response text
         const jsonText = (response.text ?? '').trim();
         if (!jsonText) {
             throw new Error('AI response was empty.');
@@ -209,8 +211,7 @@ app.post('/api/parse', async (req: express.Request, res: express.Response) => {
 });
 
 // API Endpoint for financial analysis
-// Fix: Use namespaced Express types to ensure correct type resolution.
-app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
+app.post('/api/analyze', async (req: ExpressRequest, res: ExpressResponse) => {
     const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
     if (!currentData) {
         return res.status(400).json({ error: 'Missing current financial data.' });
@@ -272,7 +273,6 @@ app.post('/api/analyze', async (req: express.Request, res: express.Response) => 
                 responseSchema: analysisSchema,
             }
         });
-        // FIX: Safely handle potentially undefined response text
         const jsonText = (response.text ?? '').trim();
          if (!jsonText) {
             throw new Error('AI response was empty.');
@@ -288,8 +288,7 @@ app.post('/api/analyze', async (req: express.Request, res: express.Response) => 
 });
 
 // API Endpoint for health score
-// Fix: Use namespaced Express types to ensure correct type resolution.
-app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
+app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) => {
     const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
     if (!currentData) {
         return res.status(400).json({ error: 'Missing current financial data.' });
@@ -333,7 +332,6 @@ app.post('/api/health-score', async (req: express.Request, res: express.Response
                 responseSchema: healthScoreSchema,
             }
         });
-        // FIX: Safely handle potentially undefined response text
         const jsonText = (response.text ?? '').trim();
         if (!jsonText) {
             throw new Error('AI response was empty.');
@@ -351,8 +349,7 @@ app.post('/api/health-score', async (req: express.Request, res: express.Response
 });
 
 // API Endpoint for KPI explanations
-// Fix: Use namespaced Express types to ensure correct type resolution.
-app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
+app.post('/api/explain-kpi', async (req: ExpressRequest, res: ExpressResponse) => {
     const { kpiName, kpiValue } = req.body;
      if (!kpiName || !kpiValue) {
         return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
@@ -368,7 +365,6 @@ app.post('/api/explain-kpi', async (req: express.Request, res: express.Response)
             model: "gemini-2.5-flash",
             contents: prompt,
         });
-        // FIX: Safely handle potentially undefined response text
         res.json({ explanation: response.text ?? `Could not generate an explanation for ${kpiName}.` });
     } catch (error) {
         console.error("Error in /api/explain-kpi:", error);
