@@ -1,13 +1,10 @@
 
-
-// FIX: Changed express import to a default import to resolve typing conflicts
-// that caused errors with request/response objects and middleware.
-// FIX: Aliased Request and Response to avoid conflicts with global types.
-import express, { Request as ExpressRequest, Response as ExpressResponse } from 'express';
+// Fix: Changed import to default express object to resolve type ambiguities.
+import express from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
-// Use a more robust import style for 'pg' to prevent CJS/ESM conflicts at runtime.
-import pg from 'pg';
+// CORRECT IMPORT: Use a named import for the Pool class. This was the cause of the crash.
+import { Pool } from 'pg';
 
 console.log("Server starting up...");
 
@@ -66,16 +63,17 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 app.use(cors());
+// Fix: Using express.json() now works as the express object types are correctly resolved.
 app.use(express.json());
 
 // --- Database Connection ---
-let dbPool: pg.Pool;
+let dbPool: Pool;
 try {
     console.log("Initializing database connection pool...");
     const connectionName = 'vfin-prod-instance:us-central1:vfin-prod-db';
     
-    // FIX: Use the default export from 'pg' to get the Pool constructor correctly.
-    dbPool = new pg.Pool({
+    // CORRECT INSTANTIATION: Use the imported Pool class directly.
+    dbPool = new Pool({
         user: 'postgres',
         database: 'vfin_data',
         password: process.env.DB_PASSWORD,
@@ -91,15 +89,17 @@ try {
 // --- API Endpoints ---
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
-// FIX: Use aliased ExpressRequest and ExpressResponse types.
-app.get('/api/db-test', async (req: ExpressRequest, res: ExpressResponse) => {
+// Fix: Explicitly use express.Request and express.Response types for handlers.
+app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
     try {
         const client = await dbPool.connect();
         const result = await client.query('SELECT NOW()');
         client.release();
+        // Fix: res.json is now available on the correctly typed response object.
         res.json({ message: 'Database connection successful!', time: result.rows[0].now });
     } catch (error: any) {
         console.error("Database connection test failed:", error);
+        // Fix: res.status is now available on the correctly typed response object.
         res.status(500).json({ error: "Failed to connect to the database.", details: error.message });
     }
 });
@@ -179,8 +179,8 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
-// FIX: Use aliased ExpressRequest and ExpressResponse types.
-app.post('/api/parse', async (req: ExpressRequest, res: ExpressResponse) => {
+app.post('/api/parse', async (req: express.Request, res: express.Response) => {
+    // Fix: req.body is now available on the correctly typed request object.
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -199,8 +199,7 @@ app.post('/api/parse', async (req: ExpressRequest, res: ExpressResponse) => {
     }
 });
 
-// FIX: Use aliased ExpressRequest and ExpressResponse types.
-app.post('/api/analyze', async (req: ExpressRequest, res: ExpressResponse) => {
+app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Analyze this financial data for a business. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with a 'summary' and 'recommendations'.`;
@@ -217,8 +216,7 @@ app.post('/api/analyze', async (req: ExpressRequest, res: ExpressResponse) => {
     }
 });
 
-// FIX: Use aliased ExpressRequest and ExpressResponse types.
-app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) => {
+app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Calculate a financial health score based on this data. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with 'score', 'rating', 'strengths', and 'weaknesses'.`;
@@ -235,8 +233,7 @@ app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) 
     }
 });
 
-// FIX: Use aliased ExpressRequest and ExpressResponse types.
-app.post('/api/explain-kpi', async (req: ExpressRequest, res: ExpressResponse) => {
+app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
     const { kpiName, kpiValue } = req.body;
     if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
     const prompt = `Explain the KPI "${kpiName}" and a value of "${kpiValue}" simply.`;
