@@ -1,7 +1,6 @@
 {
   "name": "vfin-backend",
   "version": "1.0.0",
-  "type": "module",
   "description": "Backend server for the VFIN CPA Dashboard",
   "main": "server/index.ts",
   "scripts": {
