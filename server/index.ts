@@ -1,104 +1,62 @@
-
-// Use require for all modules to ensure consistent CommonJS behavior.
 const express = require('express');
 const cors = require('cors');
 const { GoogleGenAI, Type } = require("@google/genai");
 const { Pool } = require('pg');
 
-// Define interfaces for TypeScript type checking. These do not affect runtime.
-// This ensures that even with `require`, we get strong type safety.
-// FIX: Using `import type` for Express Request and Response to ensure correct type resolution.
-import type { Request, Response } from 'express';
-
-export interface ExpenseItem {
-  name: string;
-  amount: number;
-}
-export interface FinancialHealthScore {
-  score: number;
-  rating: 'Excellent' | 'Good' | 'Fair' | 'Poor';
-  strengths: string[];
-  weaknesses: string[];
-}
-export interface ClientProfile {
-  industry: string;
-  businessModel: 'B2B' | 'B2C' | 'D2C' | 'Hybrid';
-  primaryGoal: 'Aggressive Growth' | 'Maximize Profitability' | 'Maintain Stability';
-}
-export interface ParsedFinancialData {
-  period: string;
-  totalRevenue: number;
-  netIncome: number;
-  totalAssets: number;
-  totalLiabilities: number;
-  interestBearingDebt?: number;
-  creditCardDebt?: number;
-  cashFromOps: number;
-  equity: number;
-  costOfGoodsSold?: number;
-  operatingExpenses?: number;
-  currentAssets?: number;
-  currentLiabilities?: number;
-  cashAndEquivalents?: number;
-  accountsReceivable?: number;
-  accountsPayable?: number;
-  topExpenses?: ExpenseItem[];
-}
-export interface AiAnalysisData {
-    summary: string[];
-    recommendations: string[];
-}
-
-
-console.log("Server is starting up...");
-
 // --- Environment Variable Validation ---
-console.log("Validating environment variables...");
+console.log("LOG: Validating environment variables...");
 const requiredEnvVars = ['API_KEY', 'DB_PASSWORD'];
 for (const envVar of requiredEnvVars) {
     if (!process.env[envVar]) {
-        console.error(`FATAL ERROR: Environment variable ${envVar} is not set. The service will exit.`);
-        process.exit(1);
+        console.error(`FATAL: Environment variable ${envVar} is not set. The service will exit.`);
+        process.exit(1); // Exit with an error code
     }
 }
-console.log("All required environment variables are present.");
+console.log("LOG: All required environment variables are present.");
+const PORT = process.env.PORT || 8080;
+console.log(`LOG: PORT is set to ${PORT}`);
 
+// --- Initialize Express App ---
 const app = express();
-const port = process.env.PORT || 8080;
-
 app.use(cors());
 app.use(express.json());
+console.log("LOG: Express app initialized.");
 
-// --- Database Connection ---
-let dbPool;
-try {
-    console.log("Initializing database connection pool...");
-    const connectionName = 'vfin-prod-instance:us-central1:vfin-prod-db';
-    
-    dbPool = new Pool({
-        user: 'postgres',
-        database: 'vfin_data',
-        password: process.env.DB_PASSWORD,
-        host: `/cloudsql/${connectionName}`,
-        port: 5432,
-    });
-    console.log("Database connection pool initialized successfully.");
-} catch (error) {
-    console.error("FATAL ERROR: Failed to initialize database pool.", error);
-    process.exit(1);
-}
+// --- Initialize Gemini AI Client ---
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+console.log("LOG: GoogleGenAI client initialized.");
+
+// --- Initialize Database Pool ---
+console.log("LOG: Configuring database connection pool...");
+const connectionName = process.env.CLOUD_SQL_CONNECTION_NAME || 'vfin-prod-instance:us-central1:vfin-prod-db';
+const dbPool = new Pool({
+    user: 'postgres',
+    database: 'vfin_data',
+    password: process.env.DB_PASSWORD,
+    host: `/cloudsql/${connectionName}`,
+    port: 5432,
+});
+console.log("LOG: Database connection pool configured.");
 
 // --- API Endpoints ---
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
-app.get('/api/db-test', async (req: Request, res: Response) => {
+// Health check endpoint
+app.get('/', (req, res) => {
+    res.status(200).send('VFIN Backend is running.');
+});
+
+// Database test endpoint
+app.get('/api/db-test', async (req, res) => {
+    console.log("LOG: Received request for /api/db-test");
     try {
         const client = await dbPool.connect();
+        console.log("LOG: Database client connected.");
         const result = await client.query('SELECT NOW()');
         client.release();
+        console.log("LOG: Database test query successful.");
         res.json({ message: 'Database connection successful!', time: result.rows[0].now });
-    } catch (error: any) {
-        console.error("Database connection test failed:", error);
+    } catch (error) {
+        console.error("ERROR: Database connection test failed:", error);
         res.status(500).json({ error: "Failed to connect to the database.", details: error.message });
     }
 });
@@ -138,6 +96,25 @@ const financialDataSchema = {
     required: ['period', 'totalRevenue', 'netIncome', 'totalAssets', 'totalLiabilities', 'equity', 'cashFromOps']
 };
 
+app.post('/api/parse', async (req, res) => {
+    const { statements } = req.body;
+    if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
+        return res.status(400).json({ error: 'Missing financial statements data.' });
+    }
+    const combinedContent = `Balance Sheet:\n${statements.balanceSheet}\n\nIncome Statement:\n${statements.incomeStatement}\n\nCash Flow:\n${statements.cashFlow}`;
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-pro",
+            contents: `Parse the key figures from the following financial data according to the JSON schema. \n\n${combinedContent}`,
+            config: { responseMimeType: "application/json", responseSchema: financialDataSchema },
+        });
+        res.json(JSON.parse(response.text ?? '{}'));
+    } catch (error) {
+        console.error("Error in /api/parse:", error);
+        res.status(500).json({ error: "Failed to parse financial data." });
+    }
+});
+
 const analysisSchema = {
     type: Type.OBJECT,
     properties: {
@@ -154,6 +131,23 @@ const analysisSchema = {
     },
     required: ['summary', 'recommendations']
 };
+
+app.post('/api/analyze', async (req, res) => {
+    const { currentData, previousData, profile } = req.body;
+    if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
+    const prompt = `Analyze this financial data for a business. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with a 'summary' and 'recommendations'.`;
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-pro",
+            contents: prompt,
+            config: { responseMimeType: "application/json", responseSchema: analysisSchema },
+        });
+        res.json(JSON.parse(response.text ?? '{}'));
+    } catch (error) {
+        console.error("Error in /api/analyze:", error);
+        res.status(500).json({ summary: [], recommendations: [] });
+    }
+});
 
 const healthScoreSchema = {
     type: Type.OBJECT,
@@ -178,43 +172,7 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
-app.post('/api/parse', async (req: Request, res: Response) => {
-    const { statements } = req.body;
-    if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
-        return res.status(400).json({ error: 'Missing financial statements data.' });
-    }
-    const combinedContent = `Balance Sheet:\n${statements.balanceSheet}\n\nIncome Statement:\n${statements.incomeStatement}\n\nCash Flow:\n${statements.cashFlow}`;
-    try {
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-pro",
-            contents: `Parse the key figures from the following financial data according to the JSON schema. \n\n${combinedContent}`,
-            config: { responseMimeType: "application/json", responseSchema: financialDataSchema },
-        });
-        res.json(JSON.parse(response.text ?? '{}'));
-    } catch (error) {
-        console.error("Error in /api/parse:", error);
-        res.status(500).json({ error: "Failed to parse financial data." });
-    }
-});
-
-app.post('/api/analyze', async (req: Request, res: Response) => {
-    const { currentData, previousData, profile } = req.body;
-    if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
-    const prompt = `Analyze this financial data for a business. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with a 'summary' and 'recommendations'.`;
-    try {
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-pro",
-            contents: prompt,
-            config: { responseMimeType: "application/json", responseSchema: analysisSchema },
-        });
-        res.json(JSON.parse(response.text ?? '{}'));
-    } catch (error) {
-        console.error("Error in /api/analyze:", error);
-        res.status(500).json({ summary: [], recommendations: [] });
-    }
-});
-
-app.post('/api/health-score', async (req: Request, res: Response) => {
+app.post('/api/health-score', async (req, res) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Calculate a financial health score based on this data. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with 'score', 'rating', 'strengths', and 'weaknesses'.`;
@@ -231,10 +189,10 @@ app.post('/api/health-score', async (req: Request, res: Response) => {
     }
 });
 
-app.post('/api/explain-kpi', async (req: Request, res: Response) => {
+app.post('/api/explain-kpi', async (req, res) => {
     const { kpiName, kpiValue } = req.body;
     if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
-    const prompt = `Explain the KPI "${kpiName}" and a value of "${kpiValue}" simply.`;
+    const prompt = `Explain the KPI "${kpiName}" and a value of "${kpiValue}" simply for a small business owner.`;
     try {
         const response = await ai.models.generateContent({ model: "gemini-2.5-flash", contents: prompt });
         res.json({ explanation: response.text ?? 'Could not generate explanation.' });
@@ -244,10 +202,10 @@ app.post('/api/explain-kpi', async (req: Request, res: Response) => {
     }
 });
 
-console.log(`Attempting to listen on port ${port}...`);
-app.listen(Number(port), () => {
-    console.log(`Server is alive and listening on port ${port}`);
-}).on('error', (err: any) => {
-    console.error('Failed to start server:', err);
+// --- Start Server ---
+app.listen(Number(PORT), () => {
+    console.log(`SUCCESS: Server is alive and listening on port ${PORT}`);
+}).on('error', (err) => {
+    console.error('FATAL: Server listen() failed.', err);
     process.exit(1);
 });
