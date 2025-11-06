@@ -1,7 +1,9 @@
-const express = require('express');
-const cors = require('cors');
-const { GoogleGenAI, Type } = require("@google/genai");
-const { Pool } = require('pg');
+// FIX: Switched from require to import for proper TypeScript type inference.
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import { GoogleGenAI, Type } from "@google/genai";
+import { Pool } from 'pg';
+
 
 // --- Environment Variable Validation ---
 console.log("LOG: Validating environment variables...");
@@ -41,12 +43,12 @@ console.log("LOG: Database connection pool configured.");
 // --- API Endpoints ---
 
 // Health check endpoint
-app.get('/', (req, res) => {
+app.get('/', (req: Request, res: Response) => {
     res.status(200).send('VFIN Backend is running.');
 });
 
 // Database test endpoint
-app.get('/api/db-test', async (req, res) => {
+app.get('/api/db-test', async (req: Request, res: Response) => {
     console.log("LOG: Received request for /api/db-test");
     try {
         const client = await dbPool.connect();
@@ -55,7 +57,7 @@ app.get('/api/db-test', async (req, res) => {
         client.release();
         console.log("LOG: Database test query successful.");
         res.json({ message: 'Database connection successful!', time: result.rows[0].now });
-    } catch (error) {
+    } catch (error: any) {
         console.error("ERROR: Database connection test failed:", error);
         res.status(500).json({ error: "Failed to connect to the database.", details: error.message });
     }
@@ -96,7 +98,7 @@ const financialDataSchema = {
     required: ['period', 'totalRevenue', 'netIncome', 'totalAssets', 'totalLiabilities', 'equity', 'cashFromOps']
 };
 
-app.post('/api/parse', async (req, res) => {
+app.post('/api/parse', async (req: Request, res: Response) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -108,7 +110,8 @@ app.post('/api/parse', async (req, res) => {
             contents: `Parse the key figures from the following financial data according to the JSON schema. \n\n${combinedContent}`,
             config: { responseMimeType: "application/json", responseSchema: financialDataSchema },
         });
-        res.json(JSON.parse(response.text ?? '{}'));
+        // FIX: Use `||` to guard against an empty string from response.text, which would cause JSON.parse to fail.
+        res.json(JSON.parse(response.text || '{}'));
     } catch (error) {
         console.error("Error in /api/parse:", error);
         res.status(500).json({ error: "Failed to parse financial data." });
@@ -132,7 +135,7 @@ const analysisSchema = {
     required: ['summary', 'recommendations']
 };
 
-app.post('/api/analyze', async (req, res) => {
+app.post('/api/analyze', async (req: Request, res: Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Analyze this financial data for a business. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with a 'summary' and 'recommendations'.`;
@@ -142,7 +145,8 @@ app.post('/api/analyze', async (req, res) => {
             contents: prompt,
             config: { responseMimeType: "application/json", responseSchema: analysisSchema },
         });
-        res.json(JSON.parse(response.text ?? '{}'));
+        // FIX: Use `||` to guard against an empty string from response.text, which would cause JSON.parse to fail.
+        res.json(JSON.parse(response.text || '{}'));
     } catch (error) {
         console.error("Error in /api/analyze:", error);
         res.status(500).json({ summary: [], recommendations: [] });
@@ -153,8 +157,8 @@ const healthScoreSchema = {
     type: Type.OBJECT,
     properties: {
         score: { type: Type.NUMBER, description: "An overall financial health score from 0 to 100." },
-        rating: { 
-            type: Type.STRING, 
+        rating: {
+            type: Type.STRING,
             description: "A rating based on the score.",
             enum: ['Excellent', 'Good', 'Fair', 'Poor']
         },
@@ -172,7 +176,7 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
-app.post('/api/health-score', async (req, res) => {
+app.post('/api/health-score', async (req: Request, res: Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Calculate a financial health score based on this data. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with 'score', 'rating', 'strengths', and 'weaknesses'.`;
@@ -182,20 +186,22 @@ app.post('/api/health-score', async (req, res) => {
             contents: prompt,
             config: { responseMimeType: "application/json", responseSchema: healthScoreSchema },
         });
-        res.json(JSON.parse(response.text ?? '{}'));
+        // FIX: Use `||` to guard against an empty string from response.text, which would cause JSON.parse to fail.
+        res.json(JSON.parse(response.text || '{}'));
     } catch (error) {
         console.error("Error in /api/health-score:", error);
         res.status(500).json({ score: 0, rating: "Poor", strengths: [], weaknesses: [] });
     }
 });
 
-app.post('/api/explain-kpi', async (req, res) => {
+app.post('/api/explain-kpi', async (req: Request, res: Response) => {
     const { kpiName, kpiValue } = req.body;
     if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
     const prompt = `Explain the KPI "${kpiName}" and a value of "${kpiValue}" simply for a small business owner.`;
     try {
         const response = await ai.models.generateContent({ model: "gemini-2.5-flash", contents: prompt });
-        res.json({ explanation: response.text ?? 'Could not generate explanation.' });
+        // FIX: Use `||` to provide a fallback explanation if response.text is an empty string.
+        res.json({ explanation: response.text || 'Could not generate explanation.' });
     } catch (error) {
         console.error("Error in /api/explain-kpi:", error);
         res.status(500).json({ explanation: 'Could not generate explanation.' });
@@ -205,7 +211,7 @@ app.post('/api/explain-kpi', async (req, res) => {
 // --- Start Server ---
 app.listen(Number(PORT), () => {
     console.log(`SUCCESS: Server is alive and listening on port ${PORT}`);
-}).on('error', (err) => {
+}).on('error', (err: any) => {
     console.error('FATAL: Server listen() failed.', err);
     process.exit(1);
 });
