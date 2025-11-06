@@ -1,20 +1,18 @@
-# Ignore development files and folders
 node_modules
 npm-debug.log
-.DS_Store
+Dockerfile
+.dockerignore
 dist
-
-# Ignore documentation and local config
+docs
 README.md
-docs/
-
-# Ignore the source TypeScript files for the server in the final image,
-# as we only need the compiled JavaScript in the 'dist' folder.
-server/
+*.html
 *.tsx
 *.ts
-*.txt
-*.json
-*.html
-components/
-services/
+!server/index.ts
+!server/tsconfig.json
+types.ts
+metadata.json
+components
+services
+dockerfile-content.txt
+dockerignore-content.txt
