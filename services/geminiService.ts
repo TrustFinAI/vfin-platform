@@ -1,8 +1,7 @@
 import { ParsedFinancialData, AiAnalysisData, FinancialHealthScore, ClientProfile } from '../types';
 
-// Use a relative path for API calls. When the frontend and backend are served 
-// from the same origin, the browser will handle the host and port automatically.
-const API_BASE_URL = '';
+// This URL will be replaced with your live backend URL from Cloud Run after deployment.
+const API_BASE_URL = 'https://YOUR_BACKEND_URL_WILL_GO_HERE';
 
 const handleApiResponse = async <T,>(response: Response): Promise<T> => {
     if (!response.ok) {
