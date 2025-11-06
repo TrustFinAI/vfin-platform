@@ -1,7 +1,9 @@
-
-import express, { Request, Response } from 'express';
+// Use modern ES Module import syntax
+// Fix: Alias Request and Response to avoid conflicts with global types.
+import express, { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
+import pg from 'pg'; // Import the pg library for PostgreSQL
 
 // Types copied from ../types.ts to avoid bringing in React/DOM definitions
 // into the server environment, which can cause type conflicts with Express.
@@ -50,6 +52,31 @@ const port = process.env.PORT || 8080;
 
 app.use(cors());
 app.use(express.json());
+
+// --- Database Connection ---
+// A Pool is used for efficient connection management to the database.
+const dbPool = new pg.Pool({
+    user: process.env.DB_USER,        // e.g., 'postgres'
+    host: process.env.DB_HOST,        // e.g., '/cloudsql/vfin-prod-instance:us-central1:vfin-prod-db'
+    database: process.env.DB_DATABASE,  // e.g., 'vfin_data'
+    password: process.env.DB_PASSWORD,  // Injected from Secret Manager
+    port: 5432,
+});
+
+// Test DB Connection Endpoint: We can use this after deployment to confirm everything works.
+// Fix: Use aliased ExpressRequest and ExpressResponse types.
+app.get('/api/db-test', async (req: ExpressRequest, res: ExpressResponse) => {
+    try {
+        const client = await dbPool.connect();
+        const result = await client.query('SELECT NOW()'); // Query the current time from the DB
+        client.release();
+        res.json({ message: 'Database connection successful!', time: result.rows[0].now });
+    } catch (error: any) {
+        console.error("Database connection test failed:", error);
+        res.status(500).json({ error: "Failed to connect to the database.", details: error.message });
+    }
+});
+
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
@@ -130,8 +157,8 @@ const healthScoreSchema = {
 };
 
 // API Endpoint to parse statements
-// Fix: Use Request and Response types directly from express
-app.post('/api/parse', async (req: Request, res: Response) => {
+// Fix: Use aliased ExpressRequest and ExpressResponse types.
+app.post('/api/parse', async (req: ExpressRequest, res: ExpressResponse) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -178,8 +205,8 @@ app.post('/api/parse', async (req: Request, res: Response) => {
 });
 
 // API Endpoint for financial analysis
-// Fix: Use Request and Response types directly from express
-app.post('/api/analyze', async (req: Request, res: Response) => {
+// Fix: Use aliased ExpressRequest and ExpressResponse types.
+app.post('/api/analyze', async (req: ExpressRequest, res: ExpressResponse) => {
     const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
     if (!currentData) {
         return res.status(400).json({ error: 'Missing current financial data.' });
@@ -253,8 +280,8 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
 });
 
 // API Endpoint for health score
-// Fix: Use Request and Response types directly from express
-app.post('/api/health-score', async (req: Request, res: Response) => {
+// Fix: Use aliased ExpressRequest and ExpressResponse types.
+app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) => {
     const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
     if (!currentData) {
         return res.status(400).json({ error: 'Missing current financial data.' });
@@ -312,8 +339,8 @@ app.post('/api/health-score', async (req: Request, res: Response) => {
 });
 
 // API Endpoint for KPI explanations
-// Fix: Use Request and Response types directly from express
-app.post('/api/explain-kpi', async (req: Request, res: Response) => {
+// Fix: Use aliased ExpressRequest and ExpressResponse types.
+app.post('/api/explain-kpi', async (req: ExpressRequest, res: ExpressResponse) => {
     const { kpiName, kpiValue } = req.body;
      if (!kpiName || !kpiValue) {
         return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
