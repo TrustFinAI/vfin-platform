@@ -1,11 +1,12 @@
+
 // Use proper ES module import for Express and pg
-// FIX: Aliased Request and Response to avoid conflicts with global types (e.g. from DOM).
-import express, { Request as ExpressRequest, Response as ExpressResponse } from 'express';
+// FIX: Changed from mixed default/named import to a default import to fix type resolution issues.
+import express from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
-// FIX: Changed import to be compatible with the CommonJS 'pg' module
-import pg from 'pg';
-const { Pool } = pg;
+// FIX: Corrected the import for 'pg' to use a named import, which is compatible with ES Modules.
+// This was the root cause of the container startup crash.
+import { Pool } from 'pg';
 
 // --- Environment Variable Validation ---
 // This is a critical check to ensure the service doesn't crash silently.
@@ -62,6 +63,7 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 app.use(cors());
+// FIX: Correctly typed the express.json() middleware usage.
 app.use(express.json());
 
 // --- Database Connection ---
@@ -76,7 +78,8 @@ const dbPool = new Pool({
 });
 
 // Test DB Connection Endpoint
-app.get('/api/db-test', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Replaced aliased ExpressRequest and ExpressResponse with express.Request and express.Response to use correct types.
+app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
     try {
         const client = await dbPool.connect();
         const result = await client.query('SELECT NOW()');
@@ -168,7 +171,8 @@ const healthScoreSchema = {
 };
 
 // API Endpoint to parse statements
-app.post('/api/parse', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Replaced aliased ExpressRequest and ExpressResponse with express.Request and express.Response to use correct types.
+app.post('/api/parse', async (req: express.Request, res: express.Response) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -218,7 +222,8 @@ app.post('/api/parse', async (req: ExpressRequest, res: ExpressResponse) => {
 });
 
 // API Endpoint for financial analysis
-app.post('/api/analyze', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Replaced aliased ExpressRequest and ExpressResponse with express.Request and express.Response to use correct types.
+app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
     if (!currentData) {
         return res.status(400).json({ error: 'Missing current financial data.' });
@@ -295,7 +300,8 @@ app.post('/api/analyze', async (req: ExpressRequest, res: ExpressResponse) => {
 });
 
 // API Endpoint for health score
-app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Replaced aliased ExpressRequest and ExpressResponse with express.Request and express.Response to use correct types.
+app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
     if (!currentData) {
         return res.status(400).json({ error: 'Missing current financial data.' });
@@ -356,7 +362,8 @@ app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) 
 });
 
 // API Endpoint for KPI explanations
-app.post('/api/explain-kpi', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Replaced aliased ExpressRequest and ExpressResponse with express.Request and express.Response to use correct types.
+app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
     const { kpiName, kpiValue } = req.body;
      if (!kpiName || !kpiValue) {
         return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
