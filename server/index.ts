@@ -1,10 +1,9 @@
 // Use proper ES module import for Express and pg
-// FIX: Changed import to namespace import to avoid type conflicts with global DOM types.
-import * as express from 'express';
+// FIX: Aliased Request and Response to avoid conflicts with global types (e.g. from DOM).
+import express, { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
 // FIX: Changed import to be compatible with the CommonJS 'pg' module
-// This was the root cause of the "failed to start" error.
 import pg from 'pg';
 const { Pool } = pg;
 
@@ -63,7 +62,6 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 app.use(cors());
-// FIX: Using express.json() from the namespace import to fix type resolution.
 app.use(express.json());
 
 // --- Database Connection ---
@@ -78,8 +76,7 @@ const dbPool = new Pool({
 });
 
 // Test DB Connection Endpoint
-// FIX: Use express.Request and express.Response to ensure correct types are used.
-app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
+app.get('/api/db-test', async (req: ExpressRequest, res: ExpressResponse) => {
     try {
         const client = await dbPool.connect();
         const result = await client.query('SELECT NOW()');
@@ -171,8 +168,7 @@ const healthScoreSchema = {
 };
 
 // API Endpoint to parse statements
-// FIX: Use express.Request and express.Response to ensure correct types are used.
-app.post('/api/parse', async (req: express.Request, res: express.Response) => {
+app.post('/api/parse', async (req: ExpressRequest, res: ExpressResponse) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -222,8 +218,7 @@ app.post('/api/parse', async (req: express.Request, res: express.Response) => {
 });
 
 // API Endpoint for financial analysis
-// FIX: Use express.Request and express.Response to ensure correct types are used.
-app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
+app.post('/api/analyze', async (req: ExpressRequest, res: ExpressResponse) => {
     const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
     if (!currentData) {
         return res.status(400).json({ error: 'Missing current financial data.' });
@@ -300,8 +295,7 @@ app.post('/api/analyze', async (req: express.Request, res: express.Response) => 
 });
 
 // API Endpoint for health score
-// FIX: Use express.Request and express.Response to ensure correct types are used.
-app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
+app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) => {
     const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
     if (!currentData) {
         return res.status(400).json({ error: 'Missing current financial data.' });
@@ -362,8 +356,7 @@ app.post('/api/health-score', async (req: express.Request, res: express.Response
 });
 
 // API Endpoint for KPI explanations
-// FIX: Use express.Request and express.Response to ensure correct types are used.
-app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
+app.post('/api/explain-kpi', async (req: ExpressRequest, res: ExpressResponse) => {
     const { kpiName, kpiValue } = req.body;
      if (!kpiName || !kpiValue) {
         return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
