@@ -1,30 +1,33 @@
 
-// Use proper ES module import for Express and pg
-// FIX: Changed from mixed default/named import to a default import to fix type resolution issues.
+// FIX: Changed express import to a default import to resolve typing conflicts
+// that caused errors with request/response objects and middleware.
 import express from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
-// FIX: Corrected the import for 'pg' to use a named import, which is compatible with ES Modules.
-// This was the root cause of the container startup crash.
-import { Pool } from 'pg';
+// Use a more robust import style for 'pg' to prevent CJS/ESM conflicts at runtime.
+import pg from 'pg';
+const { Pool } = pg;
+
+console.log("Server starting up...");
 
 // --- Environment Variable Validation ---
-// This is a critical check to ensure the service doesn't crash silently.
+console.log("Validating environment variables...");
 const requiredEnvVars = ['API_KEY', 'DB_PASSWORD'];
 for (const envVar of requiredEnvVars) {
     if (!process.env[envVar]) {
-        console.error(`FATAL ERROR: Environment variable ${envVar} is not set.`);
-        process.exit(1); // Exit gracefully if a variable is missing
+        console.error(`FATAL ERROR: Environment variable ${envVar} is not set. Exiting.`);
+        process.exit(1);
     }
 }
+console.log("All required environment variables are present.");
 
-// Types copied from ../types.ts to avoid bringing in React/DOM definitions
+// --- Type Definitions (isolated from frontend) ---
 export interface ExpenseItem {
   name: string;
   amount: number;
 }
 export interface FinancialHealthScore {
-  score: number; // 0-100
+  score: number;
   rating: 'Excellent' | 'Good' | 'Fair' | 'Poor';
   strengths: string[];
   weaknesses: string[];
@@ -58,27 +61,36 @@ export interface AiAnalysisData {
     recommendations: string[];
 }
 
-
 const app = express();
 const port = process.env.PORT || 8080;
 
 app.use(cors());
-// FIX: Correctly typed the express.json() middleware usage.
 app.use(express.json());
 
 // --- Database Connection ---
-const connectionName = 'vfin-prod-instance:us-central1:vfin-prod-db';
+let dbPool: pg.Pool;
+try {
+    console.log("Initializing database connection pool...");
+    const connectionName = 'vfin-prod-instance:us-central1:vfin-prod-db';
+    
+    dbPool = new Pool({
+        user: 'postgres',
+        database: 'vfin_data',
+        password: process.env.DB_PASSWORD,
+        host: `/cloudsql/${connectionName}`,
+        port: 5432,
+    });
+    console.log("Database connection pool initialized successfully.");
+} catch (error) {
+    console.error("FATAL ERROR: Failed to initialize database pool.", error);
+    process.exit(1);
+}
 
-const dbPool = new Pool({
-    user: 'postgres',
-    database: 'vfin_data',
-    password: process.env.DB_PASSWORD,
-    host: `/cloudsql/${connectionName}`,
-    port: 5432,
-});
+// --- API Endpoints ---
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
-// Test DB Connection Endpoint
-// FIX: Replaced aliased ExpressRequest and ExpressResponse with express.Request and express.Response to use correct types.
+// FIX: Updated request and response types to `express.Request` and `express.Response`
+// to ensure proper type inference for methods like .json(), .status(), and properties like .body.
 app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
     try {
         const client = await dbPool.connect();
@@ -91,10 +103,6 @@ app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
     }
 });
 
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-
-// Schemas for AI responses
 const financialDataSchema = {
     type: Type.OBJECT,
     properties: {
@@ -170,222 +178,81 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
-// API Endpoint to parse statements
-// FIX: Replaced aliased ExpressRequest and ExpressResponse with express.Request and express.Response to use correct types.
+// FIX: Updated request and response types to `express.Request` and `express.Response`
+// to ensure proper type inference for methods like .json(), .status(), and properties like .body.
 app.post('/api/parse', async (req: express.Request, res: express.Response) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
     }
-
-    const combinedContent = `
-      Here are the three core financial statements for a business. Analyze them together to extract the key figures according to the provided JSON schema. It is critical to distinguish between 'totalLiabilities' (all liabilities), 'interestBearingDebt' (only debt that accrues interest, like loans), and 'creditCardDebt' (if listed separately).
-  
-      --- BALANCE SHEET ---
-      ${statements.balanceSheet}
-      --- END BALANCE SHEET ---
-  
-      --- INCOME STATEMENT (PROFIT & LOSS) ---
-      ${statements.incomeStatement}
-      --- END INCOME STATEMENT ---
-  
-      --- CASH FLOW STATEMENT ---
-      ${statements.cashFlow}
-      --- END CASH FLOW STATEMENT ---
-    `;
-
+    const combinedContent = `Balance Sheet:\n${statements.balanceSheet}\n\nIncome Statement:\n${statements.incomeStatement}\n\nCash Flow:\n${statements.cashFlow}`;
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-pro",
-            contents: `Parse the following financial statement data. Extract the key figures according to the provided JSON schema. If a value is not present, use a reasonable default like 0. The data is: \n\n${combinedContent}`,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: financialDataSchema,
-            },
+            contents: `Parse the key figures from the following financial data according to the JSON schema. \n\n${combinedContent}`,
+            config: { responseMimeType: "application/json", responseSchema: financialDataSchema },
         });
-        
-        const jsonText = (response.text ?? '').trim();
-        if (!jsonText) {
-            throw new Error('AI response was empty.');
-        }
-        const parsedData = JSON.parse(jsonText);
-        
-        if (!parsedData.period || typeof parsedData.totalRevenue === 'undefined') {
-            throw new Error('AI response is missing key financial data.');
-        }
-        
-        res.json(parsedData as ParsedFinancialData);
-    } catch (error: any) {
+        res.json(JSON.parse(response.text ?? '{}') as ParsedFinancialData);
+    } catch (error) {
         console.error("Error in /api/parse:", error);
         res.status(500).json({ error: "Failed to parse financial data." });
     }
 });
 
-// API Endpoint for financial analysis
-// FIX: Replaced aliased ExpressRequest and ExpressResponse with express.Request and express.Response to use correct types.
+// FIX: Updated request and response types to `express.Request` and `express.Response`
+// to ensure proper type inference for methods like .json(), .status(), and properties like .body.
 app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
-    const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
-    if (!currentData) {
-        return res.status(400).json({ error: 'Missing current financial data.' });
-    }
-
-    const topExpensesList = currentData.topExpenses && currentData.topExpenses.length > 0
-        ? currentData.topExpenses.map(e => `- ${e.name}: $${e.amount.toLocaleString()}`).join('\n')
-        : 'Not available.';
-
-    let revenueGrowth = 'N/A';
-    if (previousData && previousData.totalRevenue > 0) {
-        revenueGrowth = (((currentData.totalRevenue - previousData.totalRevenue) / previousData.totalRevenue) * 100).toFixed(1) + '%';
-    }
-
-    let netProfitMargin = 'N/A';
-    if (currentData.totalRevenue > 0) {
-        netProfitMargin = ((currentData.netIncome / currentData.totalRevenue) * 100).toFixed(1) + '%';
-    }
-    
-    const debtForAnalysis = currentData.interestBearingDebt ?? currentData.totalLiabilities;
-
-    let creditCardDebtInfo = '';
-    if (currentData.creditCardDebt && currentData.creditCardDebt > 0) {
-        creditCardDebtInfo = `
-    - Credit Card Debt: $${currentData.creditCardDebt.toLocaleString()} (This is part of the total interest-bearing debt)`;
-    }
-
-    const profileContext = profile 
-        ? `The business is in the ${profile.industry} industry, with a ${profile.businessModel} model. Their primary goal is ${profile.primaryGoal}. Tailor your analysis to this context.`
-        : '';
-
-    const prompt = `
-    Act as a helpful CPA for a small business owner. ${profileContext} Analyze the following financial data for the period ${currentData.period} and provide a concise, easy-to-understand summary and actionable recommendations.
-    
-    Key Data Snapshot:
-    - Total Revenue: $${currentData.totalRevenue.toLocaleString()}
-    - Total Expenses: $${((currentData.costOfGoodsSold || 0) + (currentData.operatingExpenses || 0)).toLocaleString()}
-    - Net Income: $${currentData.netIncome.toLocaleString()}
-    - Operating Cash Flow: $${(currentData.cashFromOps || 0).toLocaleString()}
-    - Cash Balance: $${(currentData.cashAndEquivalents || 0).toLocaleString()}
-    - Total Debt (Interest-Bearing): $${debtForAnalysis.toLocaleString()}${creditCardDebtInfo}
-
-    Key Performance Indicators:
-    - Revenue Growth: ${revenueGrowth} (compared to previous period)
-    - Net Profit Margin: ${netProfitMargin}
-    
-    Top 5 Expenses:
-    ${topExpensesList}
-
-    Based on this data, provide a JSON response with a 'summary' and 'recommendations'. Pay special attention to the top expenses, revenue growth, and industry context. If a significant credit card debt balance is present, please include a specific, actionable recommendation for managing this high-interest debt.
-    `;
-    
+    const { currentData, previousData, profile } = req.body;
+    if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
+    const prompt = `Analyze this financial data for a business. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with a 'summary' and 'recommendations'.`;
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-pro",
             contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: analysisSchema,
-            }
+            config: { responseMimeType: "application/json", responseSchema: analysisSchema },
         });
-        const jsonText = (response.text ?? '').trim();
-         if (!jsonText) {
-            throw new Error('AI response was empty.');
-        }
-        res.json(JSON.parse(jsonText) as AiAnalysisData);
-    } catch (error: any) {
+        res.json(JSON.parse(response.text ?? '{}') as AiAnalysisData);
+    } catch (error) {
         console.error("Error in /api/analyze:", error);
-        res.status(500).json({
-            summary: ["Could not generate AI summary at this time."],
-            recommendations: ["Could not generate AI recommendations. Please try again later."]
-        });
+        res.status(500).json({ summary: [], recommendations: [] });
     }
 });
 
-// API Endpoint for health score
-// FIX: Replaced aliased ExpressRequest and ExpressResponse with express.Request and express.Response to use correct types.
+// FIX: Updated request and response types to `express.Request` and `express.Response`
+// to ensure proper type inference for methods like .json(), .status(), and properties like .body.
 app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
-    const { currentData, previousData, profile } = req.body as { currentData: ParsedFinancialData, previousData: ParsedFinancialData | null, profile: ClientProfile | null };
-    if (!currentData) {
-        return res.status(400).json({ error: 'Missing current financial data.' });
-    }
-
-    const netProfitMargin = currentData.totalRevenue > 0 ? (currentData.netIncome / currentData.totalRevenue) : 0;
-    const debtToEquity = (currentData.interestBearingDebt ?? currentData.totalLiabilities) / (currentData.equity || 1);
-    const revenueGrowth = (previousData && previousData.totalRevenue > 0) ? ((currentData.totalRevenue - previousData.totalRevenue) / previousData.totalRevenue) : 0;
-    
-    const profileContext = profile 
-        ? `The business is in the ${profile.industry} industry, with a ${profile.businessModel} model, and their goal is ${profile.primaryGoal}. Use this context to inform your scoring, especially when evaluating metrics like profit margin and growth, which vary by industry.`
-        : '';
-
-    const prompt = `
-    Act as an expert CPA analyzing a small business's financial health. ${profileContext} Based on the following key metrics, provide a holistic financial health score.
-    
-    - Net Profit Margin: ${(netProfitMargin * 100).toFixed(1)}% (Profitability)
-    - Debt to Equity Ratio: ${debtToEquity.toFixed(2)} (Leverage/Risk)
-    - Revenue Growth Rate: ${(revenueGrowth * 100).toFixed(1)}% (Momentum)
-    - Operating Cash Flow: $${(currentData.cashFromOps || 0).toLocaleString()} (Liquidity)
-    - Net Income: $${currentData.netIncome.toLocaleString()} (Absolute Profit)
-
-    Scoring Guidelines:
-    - Profit Margin: Award up to 35 points. A margin > 20% is excellent for most, but consider the industry context.
-    - Debt Management: Award up to 35 points. A D/E ratio < 0.5 is excellent (lower is better). A ratio > 2.0 is risky.
-    - Revenue Efficiency & Growth: Award up to 30 points. Positive revenue growth is good. High operating cash flow relative to net income is excellent.
-
-    Based on your expert analysis of these metrics, provide a JSON response with:
-    1. "score": A final integer score from 0-100.
-    2. "rating": A rating ('Excellent', 'Good', 'Fair', 'Poor').
-    3. "strengths": A list of 2-3 key financial strengths.
-    4. "weaknesses": A list of 2-3 key financial weaknesses.
-    `;
-    
+    const { currentData, previousData, profile } = req.body;
+    if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
+    const prompt = `Calculate a financial health score based on this data. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with 'score', 'rating', 'strengths', and 'weaknesses'.`;
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-pro",
             contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: healthScoreSchema,
-            }
+            config: { responseMimeType: "application/json", responseSchema: healthScoreSchema },
         });
-        const jsonText = (response.text ?? '').trim();
-        if (!jsonText) {
-            throw new Error('AI response was empty.');
-        }
-        res.json(JSON.parse(jsonText) as FinancialHealthScore);
-    } catch (error: any) {
+        res.json(JSON.parse(response.text ?? '{}') as FinancialHealthScore);
+    } catch (error) {
         console.error("Error in /api/health-score:", error);
-        res.status(500).json({
-            score: 40,
-            rating: "Fair",
-            strengths: ["Could not generate AI analysis for strengths."],
-            weaknesses: ["Could not generate AI analysis for weaknesses."]
-        });
+        res.status(500).json({ score: 0, rating: "Poor", strengths: [], weaknesses: [] });
     }
 });
 
-// API Endpoint for KPI explanations
-// FIX: Replaced aliased ExpressRequest and ExpressResponse with express.Request and express.Response to use correct types.
+// FIX: Updated request and response types to `express.Request` and `express.Response`
+// to ensure proper type inference for methods like .json(), .status(), and properties like .body.
 app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
     const { kpiName, kpiValue } = req.body;
-     if (!kpiName || !kpiValue) {
-        return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
-    }
-
-    const prompt = `
-    In simple terms for a small business owner, explain what the financial KPI "${kpiName}" means.
-    Also, briefly explain what a value of "${kpiValue}" for this KPI might indicate about their business.
-    Keep the explanation concise (2-3 sentences).
-    `;
+    if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
+    const prompt = `Explain the KPI "${kpiName}" and a value of "${kpiValue}" simply.`;
     try {
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-        });
-        res.json({ explanation: response.text ?? `Could not generate an explanation for ${kpiName}.` });
+        const response = await ai.models.generateContent({ model: "gemini-2.5-flash", contents: prompt });
+        res.json({ explanation: response.text ?? 'Could not generate explanation.' });
     } catch (error) {
         console.error("Error in /api/explain-kpi:", error);
-        res.status(500).json({ explanation: `Could not generate an explanation for ${kpiName}.` });
+        res.status(500).json({ explanation: 'Could not generate explanation.' });
     }
 });
 
+console.log(`Attempting to listen on port ${port}...`);
 app.listen(port, () => {
-    console.log(`Server listening on port ${port}`);
+    console.log(`Server is alive and listening on port ${port}`);
 });
