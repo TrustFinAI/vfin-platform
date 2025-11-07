@@ -1,18 +1,24 @@
+# Ignore build artifacts and local dependencies
+dist
 node_modules
 npm-debug.log
-Dockerfile
-.dockerignore
-dist
-docs
-README.md
-*.html
-*.tsx
-*.ts
-!server/index.ts
-!server/tsconfig.json
+
+# Ignore all frontend-specific code and assets
+components/
+services/
+App.tsx
+index.html
+index.tsx
 types.ts
 metadata.json
-components
-services
+
+# Ignore configuration and documentation files not needed for the backend server
+firebase.json
+.firebaserc
+.github/
+README.md
+docs/
 dockerfile-content.txt
 dockerignore-content.txt
+package.json
+package-lock.json
