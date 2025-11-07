@@ -1,18 +1,10 @@
 {
   "hosting": {
-    "public": ".",
+    "public": "dist",
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**",
-      "server/**",
-      "dist/**",
-      "package-lock.json",
-      "server/tsconfig.json",
-      "dockerfile-content.txt",
-      "dockerignore-content.txt",
-      "README.md",
-      "docs/**"
+      "**/node_modules/**"
     ],
     "rewrites": [
       {
