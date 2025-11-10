@@ -24,9 +24,8 @@ jobs:
         run: npm run build
 
       - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
+        uses: w9jds/firebase-action@master
         with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseToken: '${{ secrets.FIREBASE_TOKEN }}'
-          channelId: live
-          projectId: 'vfin-prod-instance'
+          args: deploy --only hosting --project vfin-prod-instance
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
