@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 export interface Kpi {
@@ -27,6 +26,7 @@ export interface ClientProfile {
   industry: string;
   businessModel: 'B2B' | 'B2C' | 'D2C' | 'Hybrid';
   primaryGoal: 'Aggressive Growth' | 'Maximize Profitability' | 'Maintain Stability';
+  companyLogoUrl?: string;
 }
 
 export interface ParsedFinancialData {
