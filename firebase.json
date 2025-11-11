@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "vfin-prod-instance",
     "public": "dist",
     "ignore": [
       "firebase.json",
