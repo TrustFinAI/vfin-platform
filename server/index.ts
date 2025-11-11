@@ -1,7 +1,7 @@
 // Using ES module imports for consistency and TypeScript compatibility.
-// FIX: Use ES module import syntax for express.
-// FIX: Alias Request and Response to avoid potential conflicts with global DOM types.
-import express, { Request as ExpressRequest, Response as ExpressResponse } from 'express';
+// FIX: Corrected Express import and type annotations (e.g., express.Request) 
+// to resolve conflicts with global DOM types causing compilation errors.
+import express from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
 import { Pool } from 'pg';
@@ -18,7 +18,7 @@ for (const envVar of requiredEnvVars) {
 }
 if (hasMissingEnvVars) {
     console.error("FATAL: Missing one or more required environment variables. The service will exit.");
-    // FIX: Cast process to `any` to avoid TypeScript error due to misconfigured environment types.
+    // Cast process to `any` to avoid TypeScript error due to misconfigured environment types.
     (process as any).exit(1);
 }
 console.log("LOG: All required environment variables are present.");
@@ -28,8 +28,6 @@ console.log(`LOG: PORT is set to ${PORT}`);
 // --- Initialize Express App ---
 const app = express();
 app.use(cors());
-// FIX: The type error on this line was caused by a type mismatch in Request/Response,
-// which is resolved by aliasing the types from express.
 app.use(express.json({ limit: '5mb' })); // Increase payload limit for file content
 console.log("LOG: Express app initialized with CORS and JSON middleware.");
 
@@ -52,14 +50,12 @@ console.log(`LOG: Database connection pool configured for host: /cloudsql/${conn
 // --- API Endpoints ---
 
 // Health check endpoint
-// FIX: Use aliased ExpressRequest and ExpressResponse types from express to fix type errors.
-app.get('/', (req: ExpressRequest, res: ExpressResponse) => {
+app.get('/', (req: express.Request, res: express.Response) => {
     res.status(200).send('VFIN Backend is running.');
 });
 
 // Database test endpoint
-// FIX: Use aliased ExpressRequest and ExpressResponse types from express to fix type errors.
-app.get('/api/db-test', async (req: ExpressRequest, res: ExpressResponse) => {
+app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
     console.log("LOG: Received request for /api/db-test");
     try {
         const client = await dbPool.connect();
@@ -109,8 +105,7 @@ const financialDataSchema = {
     required: ['period', 'totalRevenue', 'netIncome', 'totalAssets', 'totalLiabilities', 'equity', 'cashFromOps']
 };
 
-// FIX: Use aliased ExpressRequest and ExpressResponse types from express to fix type errors.
-app.post('/api/parse', async (req: ExpressRequest, res: ExpressResponse) => {
+app.post('/api/parse', async (req: express.Request, res: express.Response) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -146,8 +141,7 @@ const analysisSchema = {
     required: ['summary', 'recommendations']
 };
 
-// FIX: Use aliased ExpressRequest and ExpressResponse types from express to fix type errors.
-app.post('/api/analyze', async (req: ExpressRequest, res: ExpressResponse) => {
+app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Analyze this financial data for a business. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with a 'summary' and 'recommendations'.`;
@@ -187,8 +181,7 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
-// FIX: Use aliased ExpressRequest and ExpressResponse types from express to fix type errors.
-app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) => {
+app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Calculate a financial health score based on this data. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with 'score', 'rating', 'strengths', and 'weaknesses'.`;
@@ -205,8 +198,7 @@ app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) 
     }
 });
 
-// FIX: Use aliased ExpressRequest and ExpressResponse types from express to fix type errors.
-app.post('/api/explain-kpi', async (req: ExpressRequest, res: ExpressResponse) => {
+app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
     const { kpiName, kpiValue } = req.body;
     if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
     const prompt = `Explain the KPI "${kpiName}" and a value of "${kpiValue}" simply for a small business owner.`;
@@ -219,8 +211,7 @@ app.post('/api/explain-kpi', async (req: ExpressRequest, res: ExpressResponse) =
     }
 });
 
-// FIX: Use aliased ExpressRequest and ExpressResponse types from express to fix type errors.
-app.post('/api/validate-statement', async (req: ExpressRequest, res: ExpressResponse) => {
+app.post('/api/validate-statement', async (req: express.Request, res: express.Response) => {
     const { content, expectedType } = req.body;
     if (!content || !expectedType) {
         return res.status(400).json({ error: 'Missing content or expectedType.' });
@@ -228,8 +219,8 @@ app.post('/api/validate-statement', async (req: ExpressRequest, res: ExpressResp
 
     const typeMap: { [key: string]: string } = {
         balanceSheet: "Balance Sheet",
-        incomeStatement: "Income Statement (or Profit and Loss statement)",
-        cashFlow: "Cash Flow Statement (or Statement of Cash Flows)"
+        incomeStatement: "Income Statement (or Profit and Loss)",
+        cashFlow: "Statement of Cash Flows"
     };
 
     const friendlyTypeName = typeMap[expectedType];
@@ -248,15 +239,16 @@ app.post('/api/validate-statement', async (req: ExpressRequest, res: ExpressResp
         required: ['isValid']
     };
 
-    const prompt = `You are an expert AI accountant. Your task is to validate a financial document.
-Analyze the following document content to determine if it is a ${friendlyTypeName}.
+    const prompt = `You are an expert AI accountant performing a strict document classification. Your only task is to determine if the provided text is a '${friendlyTypeName}'.
 
-Key characteristics to look for in a ${friendlyTypeName}:
-- A Balance Sheet MUST contain 'Assets' AND 'Liabilities'.
-- An Income Statement MUST contain 'Revenue' (or 'Sales') AND 'Net Income' (or 'Net Profit').
-- A Cash Flow Statement MUST contain 'Cash Flow from Operating Activities'.
+Strict Rules:
+- A Balance Sheet MUST contain the terms 'Assets' AND 'Liabilities'.
+- An Income Statement MUST contain the terms 'Revenue' (or 'Sales' or 'Income') AND 'Net Income'.
+- A Statement of Cash Flows MUST contain the phrase 'Cash Flow from Operating Activities'.
 
-Based on your analysis, is the document a valid ${friendlyTypeName}?
+The document is ONLY a valid '${friendlyTypeName}' if it meets its specific criteria AND does NOT meet the primary criteria for the other two statement types. For example, a valid Balance Sheet must have 'Assets' and 'Liabilities' but it must NOT have 'Cash Flow from Operating Activities'.
+
+Analyze the following document and provide a JSON response with a single key "isValid" which is a boolean, based on these strict rules.
 
 Document content (first 4000 characters):
 """
@@ -278,9 +270,11 @@ ${content.substring(0, 4000)}
         console.log(`LOG: Validation for ${friendlyTypeName} returned: ${JSON.stringify(result)}`);
         res.json({ isValid: result.isValid });
 
-    } catch (error) {
-        console.error(`ERROR: AI validation failed for ${expectedType}:`, error);
-        res.status(500).json({ error: "AI validation service failed.", isValid: false });
+    } catch (error: any) {
+        // Log the detailed error for server-side debugging
+        console.error(`ERROR: AI validation failed for ${expectedType}. Raw error:`, error);
+        // Send a generic error response to the client
+        res.status(500).json({ error: "The AI validation service encountered an unexpected error.", isValid: false });
     }
 });
 
