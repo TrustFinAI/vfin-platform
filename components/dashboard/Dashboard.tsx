@@ -11,7 +11,7 @@ import AiAnalysis from './AiAnalysis';
 import FileUploadArea from './FileUploadArea';
 import TopExpenses from './TopExpenses';
 import FinancialHealthScore from './FinancialHealthScore';
-import FinancialChart from './FinancialChart';
+
 import Modal from '../ui/Modal';
 import Welcome from './Welcome';
 import { DollarSign, AlertTriangle, TrendingUp, Landmark, Banknote, Percent, Scale, PiggyBank, Briefcase, ArrowRight, TrendingDown, CashFlowIcon, GrowthIcon, CogIcon } from './Icons';
@@ -279,16 +279,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout }) => {
                                 {kpis.map(kpi => <KpiCard key={kpi.label} kpi={kpi} variant="kpi" />)}
                             </div>
                           </div>
-
-                          {financialPeriodsForChart.length > 1 && (
-                            <div className="mb-8">
-                                <div className="flex items-center mb-4">
-                                    <div className="w-2 h-2 bg-slate-400 rounded-full mr-3"></div>
-                                    <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Historical Performance</h2>
-                                </div>
-                                <FinancialChart financialPeriods={financialPeriodsForChart} />
-                            </div>
-                           )}
 
                           {financialHealthScore && (
                             <FinancialHealthScore
