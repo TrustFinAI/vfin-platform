@@ -14,24 +14,6 @@ interface FileUploadAreaProps {
   isLoading: boolean;
 }
 
-const verificationKeywordGroups: Record<StatementType, string[][]> = {
-    balanceSheet: [
-        ['assets'], 
-        ['liabilities'], 
-        ['equity', 'retained earnings', 'stockholder equity']
-    ],
-    incomeStatement: [
-        ['revenue', 'sales', 'turnover'],
-        ['expenses', 'cost of goods sold', 'cost of sales'],
-        ['net income', 'net profit', 'net loss', 'profit or loss']
-    ],
-    cashFlow: [
-        ['operating activities', 'cash from operations'], 
-        ['investing activities'], 
-        ['financing activities']
-    ],
-};
-
 const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading }) => {
   const [files, setFiles] = useState<Record<StatementType, FileState | null>>({
     balanceSheet: null,
@@ -47,43 +29,50 @@ const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading
   };
   
   const verifyFileContent = useCallback((content: string, type: StatementType): boolean => {
-      const lowerCaseContent = content.toLowerCase();
+    const lowerCaseContent = content.toLowerCase();
 
-      // --- Define Strong Signals ---
-      const isStronglyBS = lowerCaseContent.includes('total assets') && lowerCaseContent.includes('total liabilities');
-      const isStronglyIS = lowerCaseContent.includes('total revenue') || (lowerCaseContent.includes('revenue') && lowerCaseContent.includes('net income'));
-      const isStronglyCF = lowerCaseContent.includes('cash flow from operating') || lowerCaseContent.includes('cash from operations');
+    // --- Define functions to check for strong, unique signals of each statement type ---
+    // These signals are phrases that are highly unlikely to appear on other statements.
+    
+    const isDefinitelyBalanceSheet = () => {
+        const hasAssets = lowerCaseContent.includes('total assets');
+        const hasLiabilities = lowerCaseContent.includes('total liabilities');
+        return hasAssets && hasLiabilities;
+    };
 
-      // --- Define Weak Signals (based on keyword groups) ---
-      const weakChecks: Record<StatementType, boolean> = {
-          balanceSheet: false,
-          incomeStatement: false,
-          cashFlow: false,
-      };
-      
-      for (const statementType in verificationKeywordGroups) {
-          const key = statementType as StatementType;
-          weakChecks[key] = verificationKeywordGroups[key].every(group => 
-              group.some(keyword => lowerCaseContent.includes(keyword))
-          );
-      }
+    const isDefinitelyIncomeStatement = () => {
+        const hasRevenue = lowerCaseContent.includes('total revenue') || lowerCaseContent.includes('total sales');
+        const hasNetIncome = lowerCaseContent.includes('net income') || lowerCaseContent.includes('net profit');
+        return hasRevenue && hasNetIncome;
+    };
 
-      // --- Validation Logic ---
-      // A file is valid for a type if it has a strong or weak signal for that type,
-      // AND it does not have a strong signal for a DIFFERENT type.
-      switch (type) {
-          case 'balanceSheet':
-              return (isStronglyBS || weakChecks.balanceSheet) && !isStronglyCF;
-          
-          case 'incomeStatement':
-              return (isStronglyIS || weakChecks.incomeStatement) && !isStronglyBS;
-              
-          case 'cashFlow':
-              return (isStronglyCF || weakChecks.cashFlow) && !isStronglyBS;
-              
-          default:
-              return false;
-      }
+    const isDefinitelyCashFlow = () => {
+        const hasOperating = lowerCaseContent.includes('cash flow from operating') || lowerCaseContent.includes('net cash provided by operating');
+        const hasFinancing = lowerCaseContent.includes('cash flow from financing') || lowerCaseContent.includes('net cash used in financing');
+        const hasInvesting = lowerCaseContent.includes('cash flow from investing') || lowerCaseContent.includes('net cash used in investing');
+        // A valid cash flow statement should have at least two of the three main sections.
+        return hasOperating && (hasFinancing || hasInvesting);
+    };
+    
+    // --- Determine the actual type of the uploaded file based on its unique signals ---
+    const detectedAsBS = isDefinitelyBalanceSheet();
+    const detectedAsIS = isDefinitelyIncomeStatement();
+    const detectedAsCF = isDefinitelyCashFlow();
+
+    // --- Validate against the drop zone type ---
+    // The file must be positively identified as its intended type AND
+    // must NOT be positively identified as any other type.
+    // This provides strict, mutual exclusivity.
+    switch (type) {
+        case 'balanceSheet':
+            return detectedAsBS && !detectedAsIS && !detectedAsCF;
+        case 'incomeStatement':
+            return detectedAsIS && !detectedAsBS && !detectedAsCF;
+        case 'cashFlow':
+            return detectedAsCF && !detectedAsBS && !detectedAsIS;
+        default:
+            return false;
+    }
   }, []);
 
 
