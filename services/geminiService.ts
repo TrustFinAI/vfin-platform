@@ -5,8 +5,9 @@ const API_BASE_URL = 'https://vfin-backend-159586360865.us-central1.run.app';
 
 const handleApiResponse = async <T,>(response: Response): Promise<T> => {
     if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'An unknown API error occurred.' }));
-        throw new Error(errorData.error || `Request failed with status ${response.status}`);
+        const errorData = await response.json().catch(() => ({ error: `The server responded with an error (status ${response.status}), but the response was not valid JSON.` }));
+        const errorMessage = errorData.error || `Request failed with status ${response.status}`;
+        throw new Error(errorMessage);
     }
     return response.json();
 };
@@ -19,9 +20,9 @@ export const parseFinancialStatements = async (statements: { balanceSheet: strin
         body: JSON.stringify({ statements }),
     });
     return await handleApiResponse<ParsedFinancialData>(response);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error calling /api/parse:", error);
-    throw new Error("Failed to parse financial data via backend. Please check your connection and try again.");
+    throw new Error(`Failed to parse financial data. Reason: ${error.message}`);
   }
 };
 
