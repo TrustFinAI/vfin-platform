@@ -1,6 +1,7 @@
 // Using ES module imports for consistency and TypeScript compatibility.
 // FIX: Use ES module import syntax for express.
-import express, { Request, Response } from 'express';
+// FIX: Alias Request and Response to avoid potential conflicts with global DOM types.
+import express, { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
 import { Pool } from 'pg';
@@ -27,6 +28,8 @@ console.log(`LOG: PORT is set to ${PORT}`);
 // --- Initialize Express App ---
 const app = express();
 app.use(cors());
+// FIX: The type error on this line was caused by a type mismatch in Request/Response,
+// which is resolved by aliasing the types from express.
 app.use(express.json({ limit: '5mb' })); // Increase payload limit for file content
 console.log("LOG: Express app initialized with CORS and JSON middleware.");
 
@@ -49,14 +52,14 @@ console.log(`LOG: Database connection pool configured for host: /cloudsql/${conn
 // --- API Endpoints ---
 
 // Health check endpoint
-// FIX: Use Request and Response types from express to fix type errors.
-app.get('/', (req: Request, res: Response) => {
+// FIX: Use aliased ExpressRequest and ExpressResponse types from express to fix type errors.
+app.get('/', (req: ExpressRequest, res: ExpressResponse) => {
     res.status(200).send('VFIN Backend is running.');
 });
 
 // Database test endpoint
-// FIX: Use Request and Response types from express to fix type errors.
-app.get('/api/db-test', async (req: Request, res: Response) => {
+// FIX: Use aliased ExpressRequest and ExpressResponse types from express to fix type errors.
+app.get('/api/db-test', async (req: ExpressRequest, res: ExpressResponse) => {
     console.log("LOG: Received request for /api/db-test");
     try {
         const client = await dbPool.connect();
@@ -106,8 +109,8 @@ const financialDataSchema = {
     required: ['period', 'totalRevenue', 'netIncome', 'totalAssets', 'totalLiabilities', 'equity', 'cashFromOps']
 };
 
-// FIX: Use Request and Response types from express to fix type errors.
-app.post('/api/parse', async (req: Request, res: Response) => {
+// FIX: Use aliased ExpressRequest and ExpressResponse types from express to fix type errors.
+app.post('/api/parse', async (req: ExpressRequest, res: ExpressResponse) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -143,8 +146,8 @@ const analysisSchema = {
     required: ['summary', 'recommendations']
 };
 
-// FIX: Use Request and Response types from express to fix type errors.
-app.post('/api/analyze', async (req: Request, res: Response) => {
+// FIX: Use aliased ExpressRequest and ExpressResponse types from express to fix type errors.
+app.post('/api/analyze', async (req: ExpressRequest, res: ExpressResponse) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Analyze this financial data for a business. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with a 'summary' and 'recommendations'.`;
@@ -184,8 +187,8 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
-// FIX: Use Request and Response types from express to fix type errors.
-app.post('/api/health-score', async (req: Request, res: Response) => {
+// FIX: Use aliased ExpressRequest and ExpressResponse types from express to fix type errors.
+app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Calculate a financial health score based on this data. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with 'score', 'rating', 'strengths', and 'weaknesses'.`;
@@ -202,8 +205,8 @@ app.post('/api/health-score', async (req: Request, res: Response) => {
     }
 });
 
-// FIX: Use Request and Response types from express to fix type errors.
-app.post('/api/explain-kpi', async (req: Request, res: Response) => {
+// FIX: Use aliased ExpressRequest and ExpressResponse types from express to fix type errors.
+app.post('/api/explain-kpi', async (req: ExpressRequest, res: ExpressResponse) => {
     const { kpiName, kpiValue } = req.body;
     if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
     const prompt = `Explain the KPI "${kpiName}" and a value of "${kpiValue}" simply for a small business owner.`;
@@ -216,8 +219,8 @@ app.post('/api/explain-kpi', async (req: Request, res: Response) => {
     }
 });
 
-// FIX: Use Request and Response types from express to fix type errors.
-app.post('/api/validate-statement', async (req: Request, res: Response) => {
+// FIX: Use aliased ExpressRequest and ExpressResponse types from express to fix type errors.
+app.post('/api/validate-statement', async (req: ExpressRequest, res: ExpressResponse) => {
     const { content, expectedType } = req.body;
     if (!content || !expectedType) {
         return res.status(400).json({ error: 'Missing content or expectedType.' });
@@ -234,28 +237,47 @@ app.post('/api/validate-statement', async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'Invalid expectedType provided.' });
     }
 
-    const prompt = `You are an expert AI accountant. Your task is to validate a financial document.
-    Does the following text represent a ${friendlyTypeName}?
-    Analyze the text for key headers and line items characteristic of that statement. For example, a Balance Sheet must contain 'Assets' and 'Liabilities'. An Income Statement must contain 'Revenue' and 'Net Income'. A Cash Flow Statement must contain 'Cash Flow from Operating Activities'.
-    Based on your analysis, respond with a single word: "true" if it is the correct document type, and "false" otherwise.
+    const validationSchema = {
+        type: Type.OBJECT,
+        properties: {
+            isValid: { 
+                type: Type.BOOLEAN, 
+                description: 'True if the document is the correct type, false otherwise.' 
+            },
+        },
+        required: ['isValid']
+    };
 
-    Document content (first 4000 characters):
-    """
-    ${content.substring(0, 4000)}
-    """
-    
-    Is this a ${friendlyTypeName}? Your response must be only "true" or "false".`;
+    const prompt = `You are an expert AI accountant. Your task is to validate a financial document.
+Analyze the following document content to determine if it is a ${friendlyTypeName}.
+
+Key characteristics to look for in a ${friendlyTypeName}:
+- A Balance Sheet MUST contain 'Assets' AND 'Liabilities'.
+- An Income Statement MUST contain 'Revenue' (or 'Sales') AND 'Net Income' (or 'Net Profit').
+- A Cash Flow Statement MUST contain 'Cash Flow from Operating Activities'.
+
+Based on your analysis, is the document a valid ${friendlyTypeName}?
+
+Document content (first 4000 characters):
+"""
+${content.substring(0, 4000)}
+"""
+`;
 
     try {
-        const response = await ai.models.generateContent({ model: "gemini-2.5-flash", contents: prompt });
-        const resultText = (response.text ?? 'false').trim().toLowerCase();
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: validationSchema
+            }
+        });
         
-        console.log(`LOG: Validation for ${friendlyTypeName} returned: "${resultText}"`);
-        
-        // Use includes for a more robust check against minor variations like "true."
-        const isValid = resultText.includes('true');
+        const result = JSON.parse(response.text ?? '{"isValid": false}');
+        console.log(`LOG: Validation for ${friendlyTypeName} returned: ${JSON.stringify(result)}`);
+        res.json({ isValid: result.isValid });
 
-        res.json({ isValid });
     } catch (error) {
         console.error(`ERROR: AI validation failed for ${expectedType}:`, error);
         res.status(500).json({ error: "AI validation service failed.", isValid: false });
