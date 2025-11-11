@@ -96,8 +96,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout }) => {
   const clientPeriodIds = useMemo(() => allClientsPeriodIds[currentUser.companyName] || [], [allClientsPeriodIds, currentUser.companyName]);
   const clientProfile = useMemo(() => allClientsProfiles[currentUser.companyName] || null, [allClientsProfiles, currentUser.companyName]);
 
-  const financialPeriodsForChart = useMemo(() => Object.values(clientData), [clientData]);
-
   const handleProfileSave = (profile: ClientProfile) => {
     setAllClientsProfiles(prev => ({ ...prev, [currentUser.companyName]: profile }));
     setView('upload');
