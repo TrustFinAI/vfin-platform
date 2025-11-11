@@ -1,3 +1,4 @@
+
 import React, { useState, FormEvent } from 'react';
 import { ClientProfile } from '../../types';
 
@@ -9,7 +10,8 @@ const Welcome: React.FC<WelcomeProps> = ({ onProfileSave }) => {
     const [profile, setProfile] = useState<ClientProfile>({
         industry: 'Technology / SaaS',
         businessModel: 'B2B',
-        primaryGoal: 'Aggressive Growth'
+        primaryGoal: 'Aggressive Growth',
+        companyLogoUrl: '',
     });
 
     const handleSubmit = (e: FormEvent) => {
@@ -20,6 +22,17 @@ const Welcome: React.FC<WelcomeProps> = ({ onProfileSave }) => {
     const handleInputChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
         const { name, value } = e.target;
         setProfile(prev => ({...prev, [name]: value}));
+    };
+
+    const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setProfile(prev => ({...prev, companyLogoUrl: reader.result as string}));
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     const industries = [
@@ -66,6 +79,26 @@ const Welcome: React.FC<WelcomeProps> = ({ onProfileSave }) => {
                         <option>Maintain Stability</option>
                     </select>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Company Logo (Optional)</label>
+                  <div className="mt-1 flex items-center space-x-4">
+                    <div className="flex-shrink-0 h-16 w-16 rounded-md bg-slate-100 flex items-center justify-center overflow-hidden">
+                      {profile.companyLogoUrl ? (
+                        <img src={profile.companyLogoUrl} alt="Logo Preview" className="h-full w-full object-contain" />
+                      ) : (
+                         <svg className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                         </svg>
+                      )}
+                    </div>
+                    <label htmlFor="logo-upload" className="cursor-pointer bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary">
+                        <span>Upload Logo</span>
+                        <input id="logo-upload" name="logo-upload" type="file" className="sr-only" onChange={handleLogoChange} accept="image/png, image/jpeg, image/svg+xml" />
+                    </label>
+                  </div>
+                </div>
+
 
                 <div className="text-center pt-4">
                      <button
