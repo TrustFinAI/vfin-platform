@@ -1,9 +1,11 @@
-# Ignore build artifacts and local dependencies
-dist
+# Build artifacts and local dependencies
 node_modules
+dist
 npm-debug.log
+.env
 
 # Ignore all frontend-specific code and assets
+# These are not needed for the backend Docker image
 components/
 services/
 App.tsx
@@ -11,14 +13,21 @@ index.html
 index.tsx
 types.ts
 metadata.json
+vite.config.ts
+tsconfig.json
 
-# Ignore configuration and documentation files not needed for the backend server
+# Ignore root-level package files (we only care about server/package.json)
+package.json
+package-lock.json
+
+# Ignore configuration and documentation files
 firebase.json
 .firebaserc
 .github/
 README.md
 docs/
+
+# Ignore the temp files themselves
 dockerfile-content.txt
 dockerignore-content.txt
-package.json
-package-lock.json
+gitignore-content.txt
