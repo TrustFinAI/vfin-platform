@@ -14,10 +14,14 @@ interface FileUploadAreaProps {
   isLoading: boolean;
 }
 
-const verificationKeywords: Record<StatementType, string[]> = {
-    balanceSheet: ['assets', 'liabilities', 'equity'],
-    incomeStatement: ['revenue', 'net income', 'expenses'],
-    cashFlow: ['operating activities', 'investing activities', 'financing activities'],
+const verificationKeywordGroups: Record<StatementType, string[][]> = {
+    balanceSheet: [['assets'], ['liabilities'], ['equity']],
+    incomeStatement: [
+        ['revenue', 'sales', 'turnover'],
+        ['expenses', 'cost of goods sold', 'cost of sales'],
+        ['net income', 'net profit', 'net loss', 'profit or loss']
+    ],
+    cashFlow: [['operating activities'], ['investing activities'], ['financing activities']],
 };
 
 const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading }) => {
@@ -36,7 +40,11 @@ const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading
   
   const verifyFileContent = useCallback((content: string, type: StatementType): boolean => {
       const lowerCaseContent = content.toLowerCase();
-      return verificationKeywords[type].every(keyword => lowerCaseContent.includes(keyword));
+      const keywordGroups = verificationKeywordGroups[type];
+      
+      return keywordGroups.every(group => 
+          group.some(keyword => lowerCaseContent.includes(keyword))
+      );
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: StatementType) => {
@@ -123,7 +131,7 @@ const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <p className="mt-2 text-sm font-medium text-red-700">{getVerificationMessage(type)}</p>
+                    <p className="mt-2 text-sm font-medium text-red-700 text-center">{getVerificationMessage(type)}</p>
                     <button onClick={() => handleUploadClick(type)} className="mt-2 text-xs text-primary hover:underline">Upload Correct File</button>
                 </>
             )}
