@@ -1,7 +1,6 @@
-// Using ES module imports for consistency and TypeScript compatibility.
-// FIX: Corrected Express import and type annotations (e.g., express.Request) 
-// to resolve conflicts with global DOM types causing compilation errors.
-import express from 'express';
+// FIX: Aliased Request and Response to avoid conflicts with global DOM types.
+// FIX: Changed import to a namespace import to resolve module interoperability issues with Express and corrected handler type annotations.
+import * as express from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
 import { Pool } from 'pg';
@@ -217,38 +216,27 @@ app.post('/api/validate-statement', async (req: express.Request, res: express.Re
         return res.status(400).json({ error: 'Missing content or expectedType.' });
     }
 
-    const typeMap: { [key: string]: string } = {
-        balanceSheet: "Balance Sheet",
-        incomeStatement: "Income Statement (or Profit and Loss)",
-        cashFlow: "Statement of Cash Flows"
-    };
-
-    const friendlyTypeName = typeMap[expectedType];
-    if (!friendlyTypeName) {
-        return res.status(400).json({ error: 'Invalid expectedType provided.' });
-    }
-
-    const validationSchema = {
+    const classificationSchema = {
         type: Type.OBJECT,
         properties: {
-            isValid: { 
-                type: Type.BOOLEAN, 
-                description: 'True if the document is the correct type, false otherwise.' 
+            documentType: {
+                type: Type.STRING,
+                description: 'The classified type of the document.',
+                enum: ["BalanceSheet", "IncomeStatement", "CashFlowStatement", "None"]
             },
         },
-        required: ['isValid']
+        required: ['documentType']
     };
 
-    const prompt = `You are an expert AI accountant performing a strict document classification. Your only task is to determine if the provided text is a '${friendlyTypeName}'.
+    const prompt = `You are an expert AI accountant performing a strict document classification. Your task is to identify the type of financial statement provided.
 
-Strict Rules:
-- A Balance Sheet MUST contain the terms 'Assets' AND 'Liabilities'.
-- An Income Statement MUST contain the terms 'Revenue' (or 'Sales' or 'Income') AND 'Net Income'.
-- A Statement of Cash Flows MUST contain the phrase 'Cash Flow from Operating Activities'.
+Classify the document into one of the following four categories based on its primary structure and key terms: "BalanceSheet", "IncomeStatement", "CashFlowStatement", "None".
 
-The document is ONLY a valid '${friendlyTypeName}' if it meets its specific criteria AND does NOT meet the primary criteria for the other two statement types. For example, a valid Balance Sheet must have 'Assets' and 'Liabilities' but it must NOT have 'Cash Flow from Operating Activities'.
+- A "BalanceSheet" is defined by its core structure of 'Assets', 'Liabilities', and 'Equity'. It represents a snapshot in time.
+- An "IncomeStatement" (or Profit & Loss) is defined by its structure of 'Revenue' (or 'Income'/'Sales'), 'Expenses', and calculating a 'Net Income' over a period.
+- A "CashFlowStatement" is defined by its structure of three main sections: 'Cash Flow from Operating Activities', 'Cash Flow from Investing Activities', and 'Cash Flow from Financing Activities'.
 
-Analyze the following document and provide a JSON response with a single key "isValid" which is a boolean, based on these strict rules.
+Analyze the following document and return a JSON object with a single key "documentType" whose value is one of the four category strings.
 
 Document content (first 4000 characters):
 """
@@ -262,18 +250,27 @@ ${content.substring(0, 4000)}
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
-                responseSchema: validationSchema
+                responseSchema: classificationSchema
             }
         });
         
-        const result = JSON.parse(response.text ?? '{"isValid": false}');
-        console.log(`LOG: Validation for ${friendlyTypeName} returned: ${JSON.stringify(result)}`);
-        res.json({ isValid: result.isValid });
+        const result = JSON.parse(response.text ?? '{"documentType": "None"}');
+        const classifiedType = result.documentType;
+
+        const typeMapServer: { [key: string]: string } = {
+            balanceSheet: "BalanceSheet",
+            incomeStatement: "IncomeStatement",
+            cashFlow: "CashFlowStatement"
+        };
+
+        const expectedServerType = typeMapServer[expectedType];
+        const isValid = classifiedType === expectedServerType;
+        
+        console.log(`LOG: Validation for ${expectedType}. AI classified as: ${classifiedType}. Result: ${isValid}`);
+        res.json({ isValid });
 
     } catch (error: any) {
-        // Log the detailed error for server-side debugging
         console.error(`ERROR: AI validation failed for ${expectedType}. Raw error:`, error);
-        // Send a generic error response to the client
         res.status(500).json({ error: "The AI validation service encountered an unexpected error.", isValid: false });
     }
 });
