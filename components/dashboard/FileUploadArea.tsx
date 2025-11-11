@@ -14,6 +14,67 @@ interface FileUploadAreaProps {
   isLoading: boolean;
 }
 
+// --- New Weighted Scoring Engine for File Verification ---
+const keywordSets: Record<StatementType, { positive: { term: string; weight: number }[]; negative: { term: string; weight: number }[] }> = {
+  balanceSheet: {
+    positive: [
+      { term: 'total assets', weight: 5 },
+      { term: 'total liabilities', weight: 5 },
+      { term: 'shareholder equity', weight: 3 },
+      { term: 'retained earnings', weight: 2 },
+      { term: 'current assets', weight: 2 },
+      { term: 'current liabilities', weight: 2 },
+    ],
+    negative: [
+      { term: 'net income', weight: 5 },
+      { term: 'total revenue', weight: 5 },
+      { term: 'cash flow from', weight: 5 },
+    ],
+  },
+  incomeStatement: {
+    positive: [
+      { term: 'net income', weight: 5 },
+      { term: 'total revenue', weight: 5 },
+      { term: 'sales', weight: 4 },
+      { term: 'cost of goods sold', weight: 3 },
+      { term: 'operating expenses', weight: 2 },
+      { term: 'gross profit', weight: 2 },
+    ],
+    negative: [
+      { term: 'total assets', weight: 5 },
+      { term: 'total liabilities', weight: 5 },
+      { term: 'cash flow from financing', weight: 4 },
+    ],
+  },
+  cashFlow: {
+    positive: [
+      { term: 'cash flow from operating', weight: 5 },
+      { term: 'net cash provided by operating', weight: 5 },
+      { term: 'cash flow from investing', weight: 4 },
+      { term: 'cash flow from financing', weight: 4 },
+      { term: 'net change in cash', weight: 3 },
+    ],
+    negative: [
+      { term: 'total assets', weight: 5 },
+      { term: 'total liabilities', weight: 5 },
+      { term: 'gross profit', weight: 4 },
+    ],
+  },
+};
+
+const calculateScore = (content: string, type: StatementType): number => {
+    let score = 0;
+    const keywords = keywordSets[type];
+    for (const { term, weight } of keywords.positive) {
+        if (content.includes(term)) score += weight;
+    }
+    for (const { term, weight } of keywords.negative) {
+        if (content.includes(term)) score -= weight;
+    }
+    return score;
+};
+
+
 const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading }) => {
   const [files, setFiles] = useState<Record<StatementType, FileState | null>>({
     balanceSheet: null,
@@ -31,48 +92,22 @@ const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading
   const verifyFileContent = useCallback((content: string, type: StatementType): boolean => {
     const lowerCaseContent = content.toLowerCase();
 
-    // --- Define functions to check for strong, unique signals of each statement type ---
-    // These signals are phrases that are highly unlikely to appear on other statements.
-    
-    const isDefinitelyBalanceSheet = () => {
-        const hasAssets = lowerCaseContent.includes('total assets');
-        const hasLiabilities = lowerCaseContent.includes('total liabilities');
-        return hasAssets && hasLiabilities;
+    const scores = {
+        balanceSheet: calculateScore(lowerCaseContent, 'balanceSheet'),
+        incomeStatement: calculateScore(lowerCaseContent, 'incomeStatement'),
+        cashFlow: calculateScore(lowerCaseContent, 'cashFlow'),
     };
 
-    const isDefinitelyIncomeStatement = () => {
-        const hasRevenue = lowerCaseContent.includes('total revenue') || lowerCaseContent.includes('total sales');
-        const hasNetIncome = lowerCaseContent.includes('net income') || lowerCaseContent.includes('net profit');
-        return hasRevenue && hasNetIncome;
-    };
+    const targetScore = scores[type];
+    const otherScores = Object.entries(scores)
+        .filter(([key]) => key !== type)
+        .map(([, value]) => value);
 
-    const isDefinitelyCashFlow = () => {
-        const hasOperating = lowerCaseContent.includes('cash flow from operating') || lowerCaseContent.includes('net cash provided by operating');
-        const hasFinancing = lowerCaseContent.includes('cash flow from financing') || lowerCaseContent.includes('net cash used in financing');
-        const hasInvesting = lowerCaseContent.includes('cash flow from investing') || lowerCaseContent.includes('net cash used in investing');
-        // A valid cash flow statement should have at least two of the three main sections.
-        return hasOperating && (hasFinancing || hasInvesting);
-    };
-    
-    // --- Determine the actual type of the uploaded file based on its unique signals ---
-    const detectedAsBS = isDefinitelyBalanceSheet();
-    const detectedAsIS = isDefinitelyIncomeStatement();
-    const detectedAsCF = isDefinitelyCashFlow();
+    const VALIDATION_THRESHOLD = 5; // Set a threshold to ensure it has enough positive signals.
 
-    // --- Validate against the drop zone type ---
-    // The file must be positively identified as its intended type AND
-    // must NOT be positively identified as any other type.
-    // This provides strict, mutual exclusivity.
-    switch (type) {
-        case 'balanceSheet':
-            return detectedAsBS && !detectedAsIS && !detectedAsCF;
-        case 'incomeStatement':
-            return detectedAsIS && !detectedAsBS && !detectedAsCF;
-        case 'cashFlow':
-            return detectedAsCF && !detectedAsBS && !detectedAsIS;
-        default:
-            return false;
-    }
+    // A file is valid if its score for the target type is above the threshold
+    // AND its score is greater than the score for any other type.
+    return targetScore >= VALIDATION_THRESHOLD && otherScores.every(score => targetScore > score);
   }, []);
 
 
