@@ -1,11 +1,6 @@
 import React, { useState, FormEvent } from 'react';
 import { User } from '../../App';
 import OfficialLogo from '../dashboard/OfficialLogo';
-import { ClientProfile } from '../../types';
-
-interface AuthScreenProps {
-  onLoginSuccess: (user: User) => void;
-}
 
 const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
     try {
@@ -17,6 +12,17 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
     }
 };
 
+const saveToLocalStorage = <T,>(key: string, value: T) => {
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+        console.error(`Error writing "${key}" to localStorage`, error);
+    }
+};
+
+interface AuthScreenProps {
+  onLoginSuccess: (user: User) => void;
+}
 
 const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   const [isLogin, setIsLogin] = useState(true);
@@ -28,22 +34,39 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
     const formData = new FormData(e.currentTarget);
     const email = (formData.get('email') as string).trim().toLowerCase();
     const companyName = (formData.get('companyName') as string || email.split('@')[0]).trim();
+    const password = formData.get('password') as string;
 
-    if (!isLogin) {
+    const allUsers = loadFromLocalStorage<Record<string, User>>('allUsers', {});
+
+    if (isLogin) {
+        // Login Logic
+        const user = allUsers[email];
+        if (user) {
+            // In a real app, you would verify the password here.
+            onLoginSuccess(user);
+        } else {
+            setError("No account found with that email. Please register.");
+        }
+    } else {
         // Registration Logic
-        const allProfiles = loadFromLocalStorage<Record<string, ClientProfile>>('allClientsProfiles', {});
-        const allUsers = Object.entries(allProfiles).map(([company, profile]) => ({ company, email: '' })); // Simplified for now
-        
-        const existingCompany = Object.keys(allProfiles).find(cn => cn.toLowerCase() === companyName.toLowerCase());
-
-        if (existingCompany) {
-            setError(`An account for "${companyName}" already exists. Please sign in.`);
+        if (allUsers[email]) {
+            setError("An account with this email already exists. Please sign in.");
             return;
         }
-        // In a real app, we would also check if the email is already registered.
+
+        const existingCompany = Object.values(allUsers).find(user => user.companyName.toLowerCase() === companyName.toLowerCase());
+        if (existingCompany) {
+            setError(`An account for "${companyName}" already exists. Please choose a different company name or sign in.`);
+            return;
+        }
+        
+        // In a real app, password would be hashed before saving.
+        const newUser: User = { email, companyName };
+        const updatedUsers = { ...allUsers, [email]: newUser };
+        saveToLocalStorage('allUsers', updatedUsers);
+        
+        onLoginSuccess(newUser);
     }
-    
-    onLoginSuccess({ email, companyName });
   };
 
   return (
@@ -78,7 +101,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           {!isLogin && (
              <div className="space-y-4">
                 <input id="company-name" name="companyName" type="text" required className="appearance-none block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-accent focus:border-accent sm:text-sm" placeholder="Company Name" aria-label="Company Name" />
-                <input id="phone-number" name="phoneNumber" type="tel" required className="appearance-none block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-accent focus:border-accent sm:text-sm" placeholder="Phone Number" aria-label="Phone Number" />
+                <input id="phone-number" name="phoneNumber" type="tel" className="appearance-none block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-accent focus:border-accent sm:text-sm" placeholder="Phone Number (Optional)" aria-label="Phone Number" />
             </div>
           )}
           <div className="space-y-4">
