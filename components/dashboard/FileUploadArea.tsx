@@ -15,13 +15,21 @@ interface FileUploadAreaProps {
 }
 
 const verificationKeywordGroups: Record<StatementType, string[][]> = {
-    balanceSheet: [['assets'], ['liabilities'], ['equity']],
+    balanceSheet: [
+        ['assets'], 
+        ['liabilities'], 
+        ['equity', 'retained earnings', 'stockholder equity']
+    ],
     incomeStatement: [
         ['revenue', 'sales', 'turnover'],
         ['expenses', 'cost of goods sold', 'cost of sales'],
         ['net income', 'net profit', 'net loss', 'profit or loss']
     ],
-    cashFlow: [['operating activities'], ['investing activities'], ['financing activities']],
+    cashFlow: [
+        ['operating activities', 'cash from operations'], 
+        ['investing activities'], 
+        ['financing activities']
+    ],
 };
 
 const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading }) => {
@@ -41,39 +49,43 @@ const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading
   const verifyFileContent = useCallback((content: string, type: StatementType): boolean => {
       const lowerCaseContent = content.toLowerCase();
 
-      // First, check if the file contains the essential keywords for its supposed type.
-      const hasRequiredKeywords = verificationKeywordGroups[type].every(group => 
-          group.some(keyword => lowerCaseContent.includes(keyword))
-      );
+      // --- Define Strong Signals ---
+      const isStronglyBS = lowerCaseContent.includes('total assets') && lowerCaseContent.includes('total liabilities');
+      const isStronglyIS = lowerCaseContent.includes('total revenue') || (lowerCaseContent.includes('revenue') && lowerCaseContent.includes('net income'));
+      const isStronglyCF = lowerCaseContent.includes('cash flow from operating') || lowerCaseContent.includes('cash from operations');
 
-      if (!hasRequiredKeywords) {
-          return false;
+      // --- Define Weak Signals (based on keyword groups) ---
+      const weakChecks: Record<StatementType, boolean> = {
+          balanceSheet: false,
+          incomeStatement: false,
+          cashFlow: false,
+      };
+      
+      for (const statementType in verificationKeywordGroups) {
+          const key = statementType as StatementType;
+          weakChecks[key] = verificationKeywordGroups[key].every(group => 
+              group.some(keyword => lowerCaseContent.includes(keyword))
+          );
       }
 
-      // Second, perform exclusion checks to ensure it's not being misidentified.
-      // A file should only be validated if it looks like the correct type AND NOT like another type.
+      // --- Validation Logic ---
+      // A file is valid for a type if it has a strong or weak signal for that type,
+      // AND it does not have a strong signal for a DIFFERENT type.
       switch (type) {
           case 'balanceSheet':
-              // A balance sheet should not contain primary revenue or cash flow terms.
-              const hasRevenueTerm = verificationKeywordGroups.incomeStatement[0].some(k => lowerCaseContent.includes(k));
-              const hasCashFlowTerm = verificationKeywordGroups.cashFlow[0].some(k => lowerCaseContent.includes(k));
-              return !hasRevenueTerm && !hasCashFlowTerm;
-
+              return (isStronglyBS || weakChecks.balanceSheet) && !isStronglyCF;
+          
           case 'incomeStatement':
-              // An income statement should not contain strong balance sheet terms like 'total assets' and 'total liabilities'.
-              const hasStrongBalanceSheetTerms = lowerCaseContent.includes('total assets') && lowerCaseContent.includes('total liabilities');
-              return !hasStrongBalanceSheetTerms;
-
+              return (isStronglyIS || weakChecks.incomeStatement) && !isStronglyBS;
+              
           case 'cashFlow':
-              // A cash flow statement is less likely to be confused, but it also shouldn't have strong balance sheet terms.
-              const alsoLooksLikeBalanceSheet = lowerCaseContent.includes('total assets') && lowerCaseContent.includes('total liabilities');
-              return !alsoLooksLikeBalanceSheet;
+              return (isStronglyCF || weakChecks.cashFlow) && !isStronglyBS;
               
           default:
-              // Should not be reached, but as a fallback, if it passed the required keywords check, return true.
-              return true;
+              return false;
       }
   }, []);
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: StatementType) => {
     const file = e.target.files?.[0];
