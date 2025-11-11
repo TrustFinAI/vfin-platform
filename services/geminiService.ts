@@ -12,6 +12,23 @@ const handleApiResponse = async <T,>(response: Response): Promise<T> => {
     return response.json();
 };
 
+export const validateStatementFile = async (content: string, expectedType: 'balanceSheet' | 'incomeStatement' | 'cashFlow'): Promise<boolean> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/validate-statement`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, expectedType }),
+    });
+    const data = await handleApiResponse<{ isValid: boolean }>(response);
+    return data.isValid;
+  } catch (error: any) {
+    console.error(`Error validating ${expectedType}:`, error);
+    // In case of a network or server error, fail validation to be safe.
+    return false;
+  }
+};
+
+
 export const parseFinancialStatements = async (statements: { balanceSheet: string; incomeStatement: string; cashFlow: string }): Promise<ParsedFinancialData> => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/parse`, {
