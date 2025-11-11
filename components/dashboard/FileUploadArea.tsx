@@ -40,11 +40,39 @@ const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading
   
   const verifyFileContent = useCallback((content: string, type: StatementType): boolean => {
       const lowerCaseContent = content.toLowerCase();
-      const keywordGroups = verificationKeywordGroups[type];
-      
-      return keywordGroups.every(group => 
+
+      // First, check if the file contains the essential keywords for its supposed type.
+      const hasRequiredKeywords = verificationKeywordGroups[type].every(group => 
           group.some(keyword => lowerCaseContent.includes(keyword))
       );
+
+      if (!hasRequiredKeywords) {
+          return false;
+      }
+
+      // Second, perform exclusion checks to ensure it's not being misidentified.
+      // A file should only be validated if it looks like the correct type AND NOT like another type.
+      switch (type) {
+          case 'balanceSheet':
+              // A balance sheet should not contain primary revenue or cash flow terms.
+              const hasRevenueTerm = verificationKeywordGroups.incomeStatement[0].some(k => lowerCaseContent.includes(k));
+              const hasCashFlowTerm = verificationKeywordGroups.cashFlow[0].some(k => lowerCaseContent.includes(k));
+              return !hasRevenueTerm && !hasCashFlowTerm;
+
+          case 'incomeStatement':
+              // An income statement should not contain strong balance sheet terms like 'total assets' and 'total liabilities'.
+              const hasStrongBalanceSheetTerms = lowerCaseContent.includes('total assets') && lowerCaseContent.includes('total liabilities');
+              return !hasStrongBalanceSheetTerms;
+
+          case 'cashFlow':
+              // A cash flow statement is less likely to be confused, but it also shouldn't have strong balance sheet terms.
+              const alsoLooksLikeBalanceSheet = lowerCaseContent.includes('total assets') && lowerCaseContent.includes('total liabilities');
+              return !alsoLooksLikeBalanceSheet;
+              
+          default:
+              // Should not be reached, but as a fallback, if it passed the required keywords check, return true.
+              return true;
+      }
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: StatementType) => {
