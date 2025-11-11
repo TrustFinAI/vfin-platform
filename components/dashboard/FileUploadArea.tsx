@@ -1,7 +1,10 @@
+
 import React, { useRef, useState, useCallback } from 'react';
+import { validateStatementFile } from '../../services/geminiService';
+import Spinner from '../ui/Spinner';
 
 type StatementType = 'balanceSheet' | 'incomeStatement' | 'cashFlow';
-type VerificationStatus = 'unverified' | 'verified' | 'failed';
+type VerificationStatus = 'unverified' | 'verifying' | 'verified' | 'failed';
 
 interface FileState {
     name: string;
@@ -13,67 +16,6 @@ interface FileUploadAreaProps {
   onFilesReady: (statements: { balanceSheet: string; incomeStatement: string; cashFlow: string }) => void;
   isLoading: boolean;
 }
-
-// --- New Weighted Scoring Engine for File Verification ---
-const keywordSets: Record<StatementType, { positive: { term: string; weight: number }[]; negative: { term: string; weight: number }[] }> = {
-  balanceSheet: {
-    positive: [
-      { term: 'total assets', weight: 5 },
-      { term: 'total liabilities', weight: 5 },
-      { term: 'shareholder equity', weight: 3 },
-      { term: 'retained earnings', weight: 2 },
-      { term: 'current assets', weight: 2 },
-      { term: 'current liabilities', weight: 2 },
-    ],
-    negative: [
-      { term: 'net income', weight: 5 },
-      { term: 'total revenue', weight: 5 },
-      { term: 'cash flow from', weight: 5 },
-    ],
-  },
-  incomeStatement: {
-    positive: [
-      { term: 'net income', weight: 5 },
-      { term: 'total revenue', weight: 5 },
-      { term: 'sales', weight: 4 },
-      { term: 'cost of goods sold', weight: 3 },
-      { term: 'operating expenses', weight: 2 },
-      { term: 'gross profit', weight: 2 },
-    ],
-    negative: [
-      { term: 'total assets', weight: 5 },
-      { term: 'total liabilities', weight: 5 },
-      { term: 'cash flow from financing', weight: 4 },
-    ],
-  },
-  cashFlow: {
-    positive: [
-      { term: 'cash flow from operating', weight: 5 },
-      { term: 'net cash provided by operating', weight: 5 },
-      { term: 'cash flow from investing', weight: 4 },
-      { term: 'cash flow from financing', weight: 4 },
-      { term: 'net change in cash', weight: 3 },
-    ],
-    negative: [
-      { term: 'total assets', weight: 5 },
-      { term: 'total liabilities', weight: 5 },
-      { term: 'gross profit', weight: 4 },
-    ],
-  },
-};
-
-const calculateScore = (content: string, type: StatementType): number => {
-    let score = 0;
-    const keywords = keywordSets[type];
-    for (const { term, weight } of keywords.positive) {
-        if (content.includes(term)) score += weight;
-    }
-    for (const { term, weight } of keywords.negative) {
-        if (content.includes(term)) score -= weight;
-    }
-    return score;
-};
-
 
 const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading }) => {
   const [files, setFiles] = useState<Record<StatementType, FileState | null>>({
@@ -89,29 +31,7 @@ const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading
     cashFlow: useRef<HTMLInputElement>(null),
   };
   
-  const verifyFileContent = useCallback((content: string, type: StatementType): boolean => {
-    const lowerCaseContent = content.toLowerCase();
-
-    const scores = {
-        balanceSheet: calculateScore(lowerCaseContent, 'balanceSheet'),
-        incomeStatement: calculateScore(lowerCaseContent, 'incomeStatement'),
-        cashFlow: calculateScore(lowerCaseContent, 'cashFlow'),
-    };
-
-    const targetScore = scores[type];
-    const otherScores = Object.entries(scores)
-        .filter(([key]) => key !== type)
-        .map(([, value]) => value);
-
-    const VALIDATION_THRESHOLD = 5; // Set a threshold to ensure it has enough positive signals.
-
-    // A file is valid if its score for the target type is above the threshold
-    // AND its score is greater than the score for any other type.
-    return targetScore >= VALIDATION_THRESHOLD && otherScores.every(score => targetScore > score);
-  }, []);
-
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: StatementType) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, type: StatementType) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -128,9 +48,22 @@ const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading
     setGlobalError(null);
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const content = event.target?.result as string;
-      const isVerified = verifyFileContent(content, type);
+      
+      // Set to verifying state immediately
+      setFiles(prev => ({ 
+          ...prev, 
+          [type]: { 
+              name: file.name, 
+              content, 
+              status: 'verifying'
+          } 
+      }));
+
+      // Call backend for validation
+      const isVerified = await validateStatementFile(content, type);
+
       setFiles(prev => ({ 
           ...prev, 
           [type]: { 
@@ -172,13 +105,18 @@ const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading
     const status = fileState?.status || 'unverified';
     
     let borderColor = 'border-gray-300 hover:border-primary';
+    if (status === 'verifying') borderColor = 'border-primary bg-blue-50';
     if (status === 'verified') borderColor = 'border-green-500 bg-green-50';
     if (status === 'failed') borderColor = 'border-red-500 bg-red-50';
 
     return (
-        <div className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg transition-all duration-300 ${borderColor}`}>
+        <div className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg transition-all duration-300 min-h-[200px] ${borderColor}`}>
             <input type="file" ref={fileInputRefs[type]} onChange={(e) => handleFileChange(e, type)} className="hidden" accept=".txt,.csv,text/plain,text/csv" />
             
+            {status === 'verifying' && (
+                <Spinner size="sm" text="Verifying..." />
+            )}
+
             {status === 'verified' && (
                 <>
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-green-500" viewBox="0 0 20 20" fill="currentColor">
