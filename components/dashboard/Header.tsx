@@ -1,5 +1,7 @@
+
 import React from 'react';
 import OfficialLogo from './OfficialLogo';
+import { ClientProfile } from '../../types';
 
 interface HeaderProps {
     onLogout: () => void;
@@ -10,18 +12,25 @@ interface HeaderProps {
     onDeletePeriod: (id: string) => void;
     currentPeriodLabel?: string;
     companyName: string;
+    clientProfile: ClientProfile | null;
 }
 
-const Header: React.FC<HeaderProps> = ({ onLogout, onNewAnalysis, periodOptions, currentPeriodId, setCurrentPeriodId, onDeletePeriod, currentPeriodLabel, companyName }) => {
+const Header: React.FC<HeaderProps> = ({ onLogout, onNewAnalysis, periodOptions, currentPeriodId, setCurrentPeriodId, onDeletePeriod, currentPeriodLabel, companyName, clientProfile }) => {
+
+    const logoUrl = clientProfile?.companyLogoUrl;
 
     return (
         <header className="bg-white/80 backdrop-blur-lg shadow-sm sticky top-0 z-40">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                        <OfficialLogo className="w-12 h-12 mr-4" />
+                        {logoUrl ? (
+                            <img src={logoUrl} alt={`${companyName} Logo`} className="w-12 h-12 mr-4 rounded-md object-contain" />
+                        ) : (
+                            <OfficialLogo className="w-12 h-12 mr-4" />
+                        )}
                         <div>
-                            <h1 className="text-xl font-bold text-primary">CPA Financial Health Dashboard</h1>
+                            <h1 className="text-xl font-bold text-primary">VFIN Dashboard</h1>
                             {currentPeriodLabel ? 
                                 <p className="text-sm text-slate-500">{currentPeriodLabel}</p>
                                 : <p className="text-sm text-slate-500">{companyName}</p>
