@@ -1,6 +1,5 @@
-// FIX: Aliased Request and Response to avoid conflicts with global DOM types.
-// FIX: Changed import to a namespace import to resolve module interoperability issues with Express and corrected handler type annotations.
-import * as express from 'express';
+// FIX: Changed express import to use a default import and aliased Request/Response types to prevent conflicts with global DOM types.
+import express, { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
 import { Pool } from 'pg';
@@ -49,12 +48,12 @@ console.log(`LOG: Database connection pool configured for host: /cloudsql/${conn
 // --- API Endpoints ---
 
 // Health check endpoint
-app.get('/', (req: express.Request, res: express.Response) => {
+app.get('/', (req: ExpressRequest, res: ExpressResponse) => {
     res.status(200).send('VFIN Backend is running.');
 });
 
 // Database test endpoint
-app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
+app.get('/api/db-test', async (req: ExpressRequest, res: ExpressResponse) => {
     console.log("LOG: Received request for /api/db-test");
     try {
         const client = await dbPool.connect();
@@ -104,7 +103,7 @@ const financialDataSchema = {
     required: ['period', 'totalRevenue', 'netIncome', 'totalAssets', 'totalLiabilities', 'equity', 'cashFromOps']
 };
 
-app.post('/api/parse', async (req: express.Request, res: express.Response) => {
+app.post('/api/parse', async (req: ExpressRequest, res: ExpressResponse) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -140,7 +139,7 @@ const analysisSchema = {
     required: ['summary', 'recommendations']
 };
 
-app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
+app.post('/api/analyze', async (req: ExpressRequest, res: ExpressResponse) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Analyze this financial data for a business. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with a 'summary' and 'recommendations'.`;
@@ -180,7 +179,7 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
-app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
+app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Calculate a financial health score based on this data. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with 'score', 'rating', 'strengths', and 'weaknesses'.`;
@@ -197,7 +196,7 @@ app.post('/api/health-score', async (req: express.Request, res: express.Response
     }
 });
 
-app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
+app.post('/api/explain-kpi', async (req: ExpressRequest, res: ExpressResponse) => {
     const { kpiName, kpiValue } = req.body;
     if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
     const prompt = `Explain the KPI "${kpiName}" and a value of "${kpiValue}" simply for a small business owner.`;
@@ -210,7 +209,7 @@ app.post('/api/explain-kpi', async (req: express.Request, res: express.Response)
     }
 });
 
-app.post('/api/validate-statement', async (req: express.Request, res: express.Response) => {
+app.post('/api/validate-statement', async (req: ExpressRequest, res: ExpressResponse) => {
     const { content, expectedType } = req.body;
     if (!content || !expectedType) {
         return res.status(400).json({ error: 'Missing content or expectedType.' });
