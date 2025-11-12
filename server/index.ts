@@ -1,10 +1,13 @@
-// Standardizing on ES module imports for consistency and robustness with esModuleInterop.
-// Fix: Changed import to a namespace import to prevent type conflicts with global Request/Response.
-import * as express from 'express';
-import { Response } from 'express';
+// Fix: Switched to ES module imports for Express and CORS to resolve type mismatches.
+// This ensures that the `Request` and `Response` types are correctly associated
+// with the Express application instance, fixing errors on `req.body`, `res.status`, and `res.json`.
+import express, { Request, Response } from 'express';
 import cors from 'cors';
-import { GoogleGenAI, Type } from "@google/genai";
-import { Pool } from 'pg';
+const { GoogleGenAI, Type } = require("@google/genai");
+const { Pool } = require('pg');
+
+// We need to import the types separately when using require
+
 
 // --- Environment Variable Validation ---
 console.log("LOG: Server process started. Validating environment variables...");
@@ -50,14 +53,12 @@ console.log(`LOG: Database connection pool configured for host: /cloudsql/${conn
 // --- API Endpoints ---
 
 // Health check endpoint
-// Fix: Use qualified express types for request and response objects.
-app.get('/', (req: express.Request, res: express.Response) => {
+app.get('/', (req: Request, res: Response) => {
     res.status(200).send('VFIN Backend is running.');
 });
 
 // Database test endpoint
-// Fix: Use qualified express types for request and response objects.
-app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
+app.get('/api/db-test', async (req: Request, res: Response) => {
     console.log("LOG: Received request for /api/db-test");
     try {
         const client = await dbPool.connect();
@@ -107,8 +108,7 @@ const financialDataSchema = {
     required: ['period', 'totalRevenue', 'netIncome', 'totalAssets', 'totalLiabilities', 'equity', 'cashFromOps']
 };
 
-// Fix: Use qualified express types for request and response objects.
-app.post('/api/parse', async (req: express.Request, res: express.Response) => {
+app.post('/api/parse', async (req: Request, res: Response) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -144,8 +144,7 @@ const analysisSchema = {
     required: ['summary', 'recommendations']
 };
 
-// Fix: Use qualified express types for request and response objects.
-app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
+app.post('/api/analyze', async (req: Request, res: Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Analyze this financial data for a business. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with a 'summary' and 'recommendations'.`;
@@ -185,8 +184,7 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
-// Fix: Use qualified express types for request and response objects.
-app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
+app.post('/api/health-score', async (req: Request, res: Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Calculate a financial health score based on this data. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with 'score', 'rating', 'strengths', and 'weaknesses'.`;
@@ -203,8 +201,7 @@ app.post('/api/health-score', async (req: express.Request, res: express.Response
     }
 });
 
-// Fix: Use qualified express types for request and response objects.
-app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
+app.post('/api/explain-kpi', async (req: Request, res: Response) => {
     const { kpiName, kpiValue } = req.body;
     if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
     const prompt = `Explain the KPI "${kpiName}" and a value of "${kpiValue}" simply for a small business owner.`;
@@ -217,8 +214,7 @@ app.post('/api/explain-kpi', async (req: express.Request, res: express.Response)
     }
 });
 
-// Fix: Use qualified express types for request and response objects.
-app.post('/api/validate-statement', async (req: express.Request, res: express.Response) => {
+app.post('/api/validate-statement', async (req: Request, res: Response) => {
     const { content, expectedType } = req.body;
     if (!content || !expectedType) {
         return res.status(400).json({ error: 'Missing content or expectedType.' });
@@ -265,7 +261,7 @@ ${content.substring(0, 4000)}
         const result = JSON.parse(response.text ?? '{"documentType": "None"}');
         const classifiedType = result.documentType;
 
-        const typeMapServer: { [key: string]: string } = {
+        const typeMapServer: Record<string, string> = {
             balanceSheet: "BalanceSheet",
             incomeStatement: "IncomeStatement",
             cashFlow: "CashFlowStatement"
@@ -277,7 +273,7 @@ ${content.substring(0, 4000)}
         console.log(`LOG: Validation for ${expectedType}. AI classified as: ${classifiedType}. Result: ${isValid}`);
         res.json({ isValid });
 
-    } catch (error: any) {
+    } catch (error) {
         console.error(`ERROR: AI validation failed for ${expectedType}. Raw error:`, error);
         res.status(500).json({ error: "The AI validation service encountered an unexpected error.", isValid: false });
     }
