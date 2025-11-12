@@ -1,4 +1,7 @@
-name: Deploy VFIN Application
+# This is the single, definitive workflow for building and deploying the entire VFIN application.
+# It deploys the frontend to Firebase Hosting and the backend to Google Cloud Run.
+
+name: Build and Deploy VFIN Application
 
 on:
   push:
@@ -6,19 +9,22 @@ on:
       - main
 
 jobs:
+  # This job builds and deploys the React frontend.
   deploy-frontend:
     name: Build & Deploy Frontend to Firebase
     runs-on: ubuntu-latest
     permissions:
       contents: 'read'
-      id-token: 'write'
+      id-token: 'write' # Required for keyless authentication to Google Cloud
       
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # This step authenticates the runner to Google Cloud using the Workload Identity Federation
+      # secrets you configured. All subsequent steps will use this secure identity.
       - name: Authenticate to Google Cloud
-        id: auth-frontend
+        id: auth
         uses: 'google-github-actions/auth@v2'
         with:
           workload_identity_provider: '${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
@@ -35,24 +41,28 @@ jobs:
       - name: Build Frontend Application
         run: npm run build
 
+      # This action deploys to Firebase. It will automatically use the credentials from the 'auth' step
+      # instead of the old, expired FIREBASE_TOKEN.
       - name: Deploy Frontend to Firebase Hosting
         uses: w9jds/firebase-action@v14.2.1
         with:
           args: deploy --only hosting --project vfin-prod-instance
 
+  # This job builds and deploys the Node.js backend. It runs in parallel with the frontend job.
   deploy-backend:
     name: Build & Deploy Backend to Cloud Run
     runs-on: ubuntu-latest
     permissions:
       contents: 'read'
-      id-token: 'write'
+      id-token: 'write' # Required for keyless authentication to Google Cloud
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # This step also authenticates to Google Cloud. Each job runs on a fresh machine.
       - name: Authenticate to Google Cloud
-        id: auth-backend
+        id: auth
         uses: 'google-github-actions/auth@v2'
         with:
           workload_identity_provider: '${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
@@ -61,16 +71,18 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Authorize Docker push
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+      - name: Authorize Docker push to Google Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
-      - name: Deploy to Cloud Run
-        id: deploy
+      # This action builds the Dockerfile and deploys the backend service to Cloud Run,
+      # securely injecting the API_KEY and DB_PASSWORD secrets.
+      - name: Build and Deploy Backend to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: vfin-backend
           region: us-central1
-          source: . # Action will find the Dockerfile in the root
-          env_vars:
-            API_KEY: ${{ secrets.API_KEY }}
-            DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          # The 'source: .' tells the action to look for a Dockerfile in the root of the repository.
+          source: .
+          env_vars: |
+            API_KEY=${{ secrets.API_KEY }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
