@@ -1,12 +1,13 @@
-// Fix: Switched to ES module imports for Express and CORS to resolve type mismatches.
-// This ensures that the `Request` and `Response` types are correctly associated
-// with the Express application instance, fixing errors on `req.body`, `res.status`, and `res.json`.
-import express, { Request, Response } from 'express';
-import cors from 'cors';
+// Use CommonJS 'require' syntax for robust module loading in Node.js environment,
+// especially within Docker, to prevent any ES module interop issues during build.
+const express = require('express');
+const cors = require('cors');
 const { GoogleGenAI, Type } = require("@google/genai");
 const { Pool } = require('pg');
 
-// We need to import the types separately when using require
+// Define types for Express request and response to ensure type safety.
+type Request = import('express').Request;
+type Response = import('express').Response;
 
 
 // --- Environment Variable Validation ---
