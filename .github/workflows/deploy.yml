@@ -86,3 +86,4 @@ jobs:
           env_vars: |
             API_KEY=${{ secrets.API_KEY }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+
