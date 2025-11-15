@@ -86,4 +86,4 @@ jobs:
           env_vars: |
             API_KEY=${{ secrets.API_KEY }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-
+            CLOUD_SQL_CONNECTION_NAME=vfin-prod-instance:us-central1:vfin-prod-db
