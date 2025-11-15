@@ -3,13 +3,13 @@
 
 // Using CommonJS require statements to align with tsconfig.json module setting ("module": "CommonJS")
 // This resolves TypeScript compilation errors related to mismatched module types.
-const express = require('express');
+// FIX: Changed require to a typed import for Express to resolve type errors.
+import express = require('express');
 const cors = require('cors');
 const { GoogleGenAI, Type } = require("@google/genai");
 const { Pool } = require('pg');
 
-// FIX: Use aliased import type to avoid conflict with global Request/Response types.
-import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
+// FIX: Removed aliased import as namespaced types (express.Request) are used instead to avoid global type conflicts.
 
 
 // --- Environment Variable Validation ---
@@ -56,12 +56,14 @@ console.log(`LOG: Database connection pool configured for host: /cloudsql/${conn
 // --- API Endpoints ---
 
 // Health check endpoint
-app.get('/', (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Use namespaced express types for request and response objects.
+app.get('/', (req: express.Request, res: express.Response) => {
     res.status(200).send('VFIN Backend is running.');
 });
 
 // Database test endpoint
-app.get('/api/db-test', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Use namespaced express types for request and response objects.
+app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
     console.log("LOG: Received request for /api/db-test");
     try {
         // FIX: Cast client to 'any' to bypass missing/incorrect types for the 'pg' package.
@@ -112,7 +114,8 @@ const financialDataSchema = {
     required: ['period', 'totalRevenue', 'netIncome', 'totalAssets', 'totalLiabilities', 'equity', 'cashFromOps']
 };
 
-app.post('/api/parse', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Use namespaced express types for request and response objects.
+app.post('/api/parse', async (req: express.Request, res: express.Response) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -148,7 +151,8 @@ const analysisSchema = {
     required: ['summary', 'recommendations']
 };
 
-app.post('/api/analyze', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Use namespaced express types for request and response objects.
+app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Analyze this financial data for a business. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with a 'summary' and 'recommendations'.`;
@@ -188,7 +192,8 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
-app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Use namespaced express types for request and response objects.
+app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Calculate a financial health score based on this data. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with 'score', 'rating', 'strengths', and 'weaknesses'.`;
@@ -205,7 +210,8 @@ app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) 
     }
 });
 
-app.post('/api/explain-kpi', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Use namespaced express types for request and response objects.
+app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
     const { kpiName, kpiValue } = req.body;
     if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
     const prompt = `Explain the KPI "${kpiName}" and a value of "${kpiValue}" simply for a small business owner.`;
@@ -218,7 +224,8 @@ app.post('/api/explain-kpi', async (req: ExpressRequest, res: ExpressResponse) =
     }
 });
 
-app.post('/api/validate-statement', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Use namespaced express types for request and response objects.
+app.post('/api/validate-statement', async (req: express.Request, res: express.Response) => {
     const { content, expectedType } = req.body;
     if (!content || !expectedType) {
         return res.status(400).json({ error: 'Missing content or expectedType.' });
@@ -236,15 +243,16 @@ app.post('/api/validate-statement', async (req: ExpressRequest, res: ExpressResp
         required: ['documentType']
     };
 
-    const prompt = `You are an expert AI accountant performing a strict document classification. Your task is to identify the type of financial statement provided.
+    const prompt = `You are an expert AI accountant performing a strict document classification. Your primary goal is to accurately classify the document type, even if it uses common alternative names or has minor formatting inconsistencies.
 
-Classify the document into one of the following four categories based on its primary structure and key terms: "BalanceSheet", "IncomeStatement", "CashFlowStatement", "None".
+Classify the document into one of the following four categories: "BalanceSheet", "IncomeStatement", "CashFlowStatement", or "None".
 
-- A "BalanceSheet" is defined by its core structure of 'Assets', 'Liabilities', and 'Equity'. It represents a snapshot in time.
-- An "IncomeStatement" (or Profit & Loss) is defined by its structure of 'Revenue' (or 'Income'/'Sales'), 'Expenses', and calculating a 'Net Income' over a period.
-- A "CashFlowStatement" is defined by its structure of three main sections: 'Cash Flow from Operating Activities', 'Cash Flow from Investing Activities', and 'Cash Flow from Financing Activities'.
+- **BalanceSheet**: Look for the core structure of 'Assets', 'Liabilities', and 'Equity'. Common synonyms include "Statement of Financial Position".
+- **IncomeStatement**: Look for a structure of 'Revenue' (or 'Sales', 'Income'), 'Expenses' (or 'Costs'), and a calculation of 'Net Income'. Common synonyms include "Profit and Loss", "P&L", or "Statement of Operations".
+- **CashFlowStatement**: Look for the three main sections: 'Cash Flow from Operating Activities', 'Investing Activities', and 'Financing Activities'. A common synonym is "Statement of Cash Flows".
+- **None**: If the document does not clearly match any of the above structures, classify it as "None".
 
-Analyze the following document and return a JSON object with a single key "documentType" whose value is one of the four category strings.
+Analyze the following document and return a JSON object with a single key "documentType" whose value is EXACTLY one of the four required strings.
 
 Document content (first 4000 characters):
 """
@@ -272,7 +280,8 @@ ${content.substring(0, 4000)}
         };
 
         const expectedServerType = typeMapServer[expectedType];
-        const isValid = classifiedType === expectedServerType;
+        // Make the comparison case-insensitive to account for potential variations from the AI
+        const isValid = classifiedType.toLowerCase() === expectedServerType.toLowerCase();
         
         console.log(`LOG: Validation for ${expectedType}. AI classified as: ${classifiedType}. Result: ${isValid}`);
         res.json({ isValid });
