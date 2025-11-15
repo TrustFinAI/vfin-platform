@@ -40,13 +40,14 @@ jobs:
       - name: Build Frontend Application
         run: npm run build
 
-      # This is the official Firebase action. It uses the Google credentials from the 'auth' step.
+      # This is the corrected, official Firebase action. It uses the Google credentials from the 'auth' step.
       - name: Deploy Frontend to Firebase Hosting
-        uses: firebase/firebase-tools-action@v0
+        uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          args: deploy --only hosting
-        env:
-          PROJECT_ID: vfin-prod-instance
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}'
+          projectId: vfin-prod-instance
+          channelId: live
 
   # This job builds and deploys the Node.js backend. It runs in parallel with the frontend job.
   deploy-backend:
@@ -70,12 +71,13 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
       
-      # This explicit step ensures the deployer has the permission to impersonate the runtime service account.
-      # This resolves the 'iam.serviceAccounts.getAccessToken' error.
+      # This explicit step grants the deployer permission to impersonate the known runtime service account.
+      # This resolves the 'iam.serviceAccounts.getAccessToken' error by being direct.
+      # NOTE: Replace '159586360865' with your actual GCP project number if it differs.
       - name: Grant Service Account User role to Deployer
         run: |
           gcloud iam service-accounts add-iam-policy-binding \
-            "$(gcloud run services describe vfin-backend --region=us-central1 --format='value(spec.template.spec.serviceAccountName)')" \
+            "159586360865-compute@developer.gserviceaccount.com" \
             --member="serviceAccount:${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}" \
             --role="roles/iam.serviceAccountUser"
 
