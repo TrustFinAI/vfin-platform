@@ -40,12 +40,11 @@ jobs:
       - name: Build Frontend Application
         run: npm run build
 
-      # This is the corrected, official Firebase action. It uses the Google credentials from the 'auth' step.
+      # This is the corrected, official Firebase action. It uses the Google credentials from the 'auth' step automatically.
       - name: Deploy Frontend to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}'
           projectId: vfin-prod-instance
           channelId: live
 
@@ -71,20 +70,11 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
       
-      # This explicit step grants the deployer permission to impersonate the known runtime service account.
-      # This resolves the 'iam.serviceAccounts.getAccessToken' error by being direct.
-      # NOTE: Replace '159586360865' with your actual GCP project number if it differs.
-      - name: Grant Service Account User role to Deployer
-        run: |
-          gcloud iam service-accounts add-iam-policy-binding \
-            "159586360865-compute@developer.gserviceaccount.com" \
-            --member="serviceAccount:${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}" \
-            --role="roles/iam.serviceAccountUser"
-
       - name: Authorize Docker push to Google Artifact Registry
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       # This action builds the Dockerfile and deploys the backend service to Cloud Run.
+      # The 'Service Account User' role must be granted manually in the GCP Console.
       - name: Build and Deploy Backend to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
