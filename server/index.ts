@@ -1,13 +1,15 @@
-// Use CommonJS 'require' syntax for robust module loading in Node.js environment,
-// especially within Docker, to prevent any ES module interop issues during build.
+// FIX: Add reference to node types to ensure 'process' is correctly typed.
+/// <reference types="node" />
+
+// Using CommonJS require statements to align with tsconfig.json module setting ("module": "CommonJS")
+// This resolves TypeScript compilation errors related to mismatched module types.
 const express = require('express');
 const cors = require('cors');
 const { GoogleGenAI, Type } = require("@google/genai");
 const { Pool } = require('pg');
 
-// Define types for Express request and response to ensure type safety.
-type Request = import('express').Request;
-type Response = import('express').Response;
+// FIX: Use aliased import type to avoid conflict with global Request/Response types.
+import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 
 
 // --- Environment Variable Validation ---
@@ -22,8 +24,8 @@ for (const envVar of requiredEnvVars) {
 }
 if (hasMissingEnvVars) {
     console.error("FATAL: Missing one or more required environment variables. The service will exit.");
-    // Exit the process if critical configuration is missing.
-    process.exit(1);
+    // FIX: Use type assertion for process.exit to resolve type error from misconfigured TS environment.
+    (process as NodeJS.Process).exit(1);
 }
 console.log("LOG: All required environment variables are present.");
 const PORT = process.env.PORT || 8080;
@@ -54,15 +56,16 @@ console.log(`LOG: Database connection pool configured for host: /cloudsql/${conn
 // --- API Endpoints ---
 
 // Health check endpoint
-app.get('/', (req: Request, res: Response) => {
+app.get('/', (req: ExpressRequest, res: ExpressResponse) => {
     res.status(200).send('VFIN Backend is running.');
 });
 
 // Database test endpoint
-app.get('/api/db-test', async (req: Request, res: Response) => {
+app.get('/api/db-test', async (req: ExpressRequest, res: ExpressResponse) => {
     console.log("LOG: Received request for /api/db-test");
     try {
-        const client = await dbPool.connect();
+        // FIX: Cast client to 'any' to bypass missing/incorrect types for the 'pg' package.
+        const client: any = await dbPool.connect();
         console.log("LOG: Database client connected.");
         const result = await client.query('SELECT NOW()');
         client.release();
@@ -109,7 +112,7 @@ const financialDataSchema = {
     required: ['period', 'totalRevenue', 'netIncome', 'totalAssets', 'totalLiabilities', 'equity', 'cashFromOps']
 };
 
-app.post('/api/parse', async (req: Request, res: Response) => {
+app.post('/api/parse', async (req: ExpressRequest, res: ExpressResponse) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -145,7 +148,7 @@ const analysisSchema = {
     required: ['summary', 'recommendations']
 };
 
-app.post('/api/analyze', async (req: Request, res: Response) => {
+app.post('/api/analyze', async (req: ExpressRequest, res: ExpressResponse) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Analyze this financial data for a business. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with a 'summary' and 'recommendations'.`;
@@ -185,7 +188,7 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
-app.post('/api/health-score', async (req: Request, res: Response) => {
+app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Calculate a financial health score based on this data. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with 'score', 'rating', 'strengths', and 'weaknesses'.`;
@@ -202,7 +205,7 @@ app.post('/api/health-score', async (req: Request, res: Response) => {
     }
 });
 
-app.post('/api/explain-kpi', async (req: Request, res: Response) => {
+app.post('/api/explain-kpi', async (req: ExpressRequest, res: ExpressResponse) => {
     const { kpiName, kpiValue } = req.body;
     if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
     const prompt = `Explain the KPI "${kpiName}" and a value of "${kpiValue}" simply for a small business owner.`;
@@ -215,7 +218,7 @@ app.post('/api/explain-kpi', async (req: Request, res: Response) => {
     }
 });
 
-app.post('/api/validate-statement', async (req: Request, res: Response) => {
+app.post('/api/validate-statement', async (req: ExpressRequest, res: ExpressResponse) => {
     const { content, expectedType } = req.body;
     if (!content || !expectedType) {
         return res.status(400).json({ error: 'Missing content or expectedType.' });
