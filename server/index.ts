@@ -1,15 +1,11 @@
 // FIX: Add reference to node types to ensure 'process' is correctly typed.
 /// <reference types="node" />
 
-// Using CommonJS require statements to align with tsconfig.json module setting ("module": "CommonJS")
-// This resolves TypeScript compilation errors related to mismatched module types.
-// FIX: Changed require to a typed import for Express to resolve type errors.
-import express = require('express');
-const cors = require('cors');
-const { GoogleGenAI, Type } = require("@google/genai");
-const { Pool } = require('pg');
-
-// FIX: Removed aliased import as namespaced types (express.Request) are used instead to avoid global type conflicts.
+// FIX: Changed to ES module imports to resolve type errors with Express and other packages.
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import { GoogleGenAI, Type } from "@google/genai";
+import { Pool } from 'pg';
 
 
 // --- Environment Variable Validation ---
@@ -56,14 +52,12 @@ console.log(`LOG: Database connection pool configured for host: /cloudsql/${conn
 // --- API Endpoints ---
 
 // Health check endpoint
-// FIX: Use namespaced express types for request and response objects.
-app.get('/', (req: express.Request, res: express.Response) => {
+app.get('/', (req: Request, res: Response) => {
     res.status(200).send('VFIN Backend is running.');
 });
 
 // Database test endpoint
-// FIX: Use namespaced express types for request and response objects.
-app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
+app.get('/api/db-test', async (req: Request, res: Response) => {
     console.log("LOG: Received request for /api/db-test");
     try {
         // FIX: Cast client to 'any' to bypass missing/incorrect types for the 'pg' package.
@@ -114,8 +108,7 @@ const financialDataSchema = {
     required: ['period', 'totalRevenue', 'netIncome', 'totalAssets', 'totalLiabilities', 'equity', 'cashFromOps']
 };
 
-// FIX: Use namespaced express types for request and response objects.
-app.post('/api/parse', async (req: express.Request, res: express.Response) => {
+app.post('/api/parse', async (req: Request, res: Response) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -151,8 +144,7 @@ const analysisSchema = {
     required: ['summary', 'recommendations']
 };
 
-// FIX: Use namespaced express types for request and response objects.
-app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
+app.post('/api/analyze', async (req: Request, res: Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Analyze this financial data for a business. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with a 'summary' and 'recommendations'.`;
@@ -192,8 +184,7 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
-// FIX: Use namespaced express types for request and response objects.
-app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
+app.post('/api/health-score', async (req: Request, res: Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Calculate a financial health score based on this data. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with 'score', 'rating', 'strengths', and 'weaknesses'.`;
@@ -210,8 +201,7 @@ app.post('/api/health-score', async (req: express.Request, res: express.Response
     }
 });
 
-// FIX: Use namespaced express types for request and response objects.
-app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
+app.post('/api/explain-kpi', async (req: Request, res: Response) => {
     const { kpiName, kpiValue } = req.body;
     if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
     const prompt = `Explain the KPI "${kpiName}" and a value of "${kpiValue}" simply for a small business owner.`;
@@ -224,54 +214,34 @@ app.post('/api/explain-kpi', async (req: express.Request, res: express.Response)
     }
 });
 
-// FIX: Use namespaced express types for request and response objects.
-app.post('/api/validate-statement', async (req: express.Request, res: express.Response) => {
+app.post('/api/validate-statement', async (req: Request, res: Response) => {
     const { content, expectedType } = req.body;
     if (!content || !expectedType) {
         return res.status(400).json({ error: 'Missing content or expectedType.' });
     }
 
-    const classificationSchema = {
-        type: Type.OBJECT,
-        properties: {
-            documentType: {
-                type: Type.STRING,
-                description: 'The classified type of the document.',
-                enum: ["BalanceSheet", "IncomeStatement", "CashFlowStatement", "None"]
-            },
-        },
-        required: ['documentType']
-    };
+    // A simpler, more direct prompt asking for a single keyword response.
+    const prompt = `Analyze the following financial document text. Respond with ONLY ONE of the following keywords: "BalanceSheet", "IncomeStatement", "CashFlowStatement", or "None".
 
-    const prompt = `You are an expert AI accountant performing a strict document classification. Your primary goal is to accurately classify the document type, even if it uses common alternative names or has minor formatting inconsistencies.
+Consider common synonyms: an Income Statement may be called a "P&L" or "Profit and Loss". A Balance Sheet may be a "Statement of Financial Position".
 
-Classify the document into one of the following four categories: "BalanceSheet", "IncomeStatement", "CashFlowStatement", or "None".
+Do not provide any explanation or introductory text. Your entire response must be one of those four keywords.
 
-- **BalanceSheet**: Look for the core structure of 'Assets', 'Liabilities', and 'Equity'. Common synonyms include "Statement of Financial Position".
-- **IncomeStatement**: Look for a structure of 'Revenue' (or 'Sales', 'Income'), 'Expenses' (or 'Costs'), and a calculation of 'Net Income'. Common synonyms include "Profit and Loss", "P&L", or "Statement of Operations".
-- **CashFlowStatement**: Look for the three main sections: 'Cash Flow from Operating Activities', 'Investing Activities', and 'Financing Activities'. A common synonym is "Statement of Cash Flows".
-- **None**: If the document does not clearly match any of the above structures, classify it as "None".
-
-Analyze the following document and return a JSON object with a single key "documentType" whose value is EXACTLY one of the four required strings.
-
-Document content (first 4000 characters):
+Document Content (first 4000 characters):
 """
 ${content.substring(0, 4000)}
 """
 `;
 
     try {
+        // Removed the complex JSON schema for a more reliable plain text response.
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: classificationSchema
-            }
         });
         
-        const result = JSON.parse(response.text ?? '{"documentType": "None"}');
-        const classifiedType = result.documentType;
+        // The AI's response is now the keyword itself. Trim any whitespace.
+        const classifiedType = (response.text ?? 'None').trim();
 
         const typeMapServer: Record<string, string> = {
             balanceSheet: "BalanceSheet",
@@ -280,7 +250,8 @@ ${content.substring(0, 4000)}
         };
 
         const expectedServerType = typeMapServer[expectedType];
-        // Make the comparison case-insensitive to account for potential variations from the AI
+        
+        // Case-insensitive comparison remains as a safeguard.
         const isValid = classifiedType.toLowerCase() === expectedServerType.toLowerCase();
         
         console.log(`LOG: Validation for ${expectedType}. AI classified as: ${classifiedType}. Result: ${isValid}`);
@@ -291,6 +262,7 @@ ${content.substring(0, 4000)}
         res.status(500).json({ error: "The AI validation service encountered an unexpected error.", isValid: false });
     }
 });
+
 
 // --- Start Server ---
 app.listen(PORT, () => {
