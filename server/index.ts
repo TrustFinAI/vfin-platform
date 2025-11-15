@@ -1,5 +1,7 @@
 
+// Use separate imports for the express value and types to avoid conflicts.
 import express from 'express';
+import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
 import pg from 'pg';
@@ -26,7 +28,6 @@ console.log(`LOG: PORT is set to ${PORT}`);
 // --- Initialize Express App ---
 const app = express();
 app.use(cors());
-// FIX: Using the correct express import resolves type errors here.
 app.use(express.json({ limit: '5mb' })); // Increase payload limit for file content
 console.log("LOG: Express app initialized with CORS and JSON middleware.");
 
@@ -49,14 +50,12 @@ console.log(`LOG: Database connection pool configured for host: /cloudsql/${conn
 // --- API Endpoints ---
 
 // Health check endpoint
-// FIX: Use express.Request and express.Response for correct typing.
-app.get('/', (req: express.Request, res: express.Response) => {
+app.get('/', (req: ExpressRequest, res: ExpressResponse) => {
     res.status(200).send('VFIN Backend is running.');
 });
 
 // Database test endpoint
-// FIX: Use express.Request and express.Response for correct typing.
-app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
+app.get('/api/db-test', async (req: ExpressRequest, res: ExpressResponse) => {
     console.log("LOG: Received request for /api/db-test");
     try {
         const client = await dbPool.connect();
@@ -106,8 +105,7 @@ const financialDataSchema = {
     required: ['period', 'totalRevenue', 'netIncome', 'totalAssets', 'totalLiabilities', 'equity', 'cashFromOps']
 };
 
-// FIX: Use express.Request and express.Response for correct typing.
-app.post('/api/parse', async (req: express.Request, res: express.Response) => {
+app.post('/api/parse', async (req: ExpressRequest, res: ExpressResponse) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -143,8 +141,7 @@ const analysisSchema = {
     required: ['summary', 'recommendations']
 };
 
-// FIX: Use express.Request and express.Response for correct typing.
-app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
+app.post('/api/analyze', async (req: ExpressRequest, res: ExpressResponse) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Analyze this financial data for a business. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with a 'summary' and 'recommendations'.`;
@@ -184,8 +181,7 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
-// FIX: Use express.Request and express.Response for correct typing.
-app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
+app.post('/api/health-score', async (req: ExpressRequest, res: ExpressResponse) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Calculate a financial health score based on this data. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with 'score', 'rating', 'strengths', and 'weaknesses'.`;
@@ -202,8 +198,7 @@ app.post('/api/health-score', async (req: express.Request, res: express.Response
     }
 });
 
-// FIX: Use express.Request and express.Response for correct typing.
-app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
+app.post('/api/explain-kpi', async (req: ExpressRequest, res: ExpressResponse) => {
     const { kpiName, kpiValue } = req.body;
     if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
     const prompt = `Explain the KPI "${kpiName}" and a value of "${kpiValue}" simply for a small business owner.`;
@@ -216,8 +211,7 @@ app.post('/api/explain-kpi', async (req: express.Request, res: express.Response)
     }
 });
 
-// FIX: Use express.Request and express.Response for correct typing.
-app.post('/api/validate-statement', async (req: express.Request, res: express.Response) => {
+app.post('/api/validate-statement', async (req: ExpressRequest, res: ExpressResponse) => {
     const { content, expectedType } = req.body;
     if (!content || !expectedType) {
         return res.status(400).json({ error: 'Missing content or expectedType.' });
