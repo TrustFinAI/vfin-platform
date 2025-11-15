@@ -1,12 +1,9 @@
-// FIX: Add reference to node types to ensure 'process' is correctly typed.
-/// <reference types="node" />
 
-// FIX: Changed to ES module imports to resolve type errors with Express and other packages.
-import express, { Request, Response } from 'express';
+import express from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from "@google/genai";
-import { Pool } from 'pg';
-
+import pg from 'pg';
+const { Pool } = pg;
 
 // --- Environment Variable Validation ---
 console.log("LOG: Server process started. Validating environment variables...");
@@ -20,8 +17,7 @@ for (const envVar of requiredEnvVars) {
 }
 if (hasMissingEnvVars) {
     console.error("FATAL: Missing one or more required environment variables. The service will exit.");
-    // FIX: Use type assertion for process.exit to resolve type error from misconfigured TS environment.
-    (process as NodeJS.Process).exit(1);
+    process.exit(1);
 }
 console.log("LOG: All required environment variables are present.");
 const PORT = process.env.PORT || 8080;
@@ -30,6 +26,7 @@ console.log(`LOG: PORT is set to ${PORT}`);
 // --- Initialize Express App ---
 const app = express();
 app.use(cors());
+// FIX: Using the correct express import resolves type errors here.
 app.use(express.json({ limit: '5mb' })); // Increase payload limit for file content
 console.log("LOG: Express app initialized with CORS and JSON middleware.");
 
@@ -52,16 +49,17 @@ console.log(`LOG: Database connection pool configured for host: /cloudsql/${conn
 // --- API Endpoints ---
 
 // Health check endpoint
-app.get('/', (req: Request, res: Response) => {
+// FIX: Use express.Request and express.Response for correct typing.
+app.get('/', (req: express.Request, res: express.Response) => {
     res.status(200).send('VFIN Backend is running.');
 });
 
 // Database test endpoint
-app.get('/api/db-test', async (req: Request, res: Response) => {
+// FIX: Use express.Request and express.Response for correct typing.
+app.get('/api/db-test', async (req: express.Request, res: express.Response) => {
     console.log("LOG: Received request for /api/db-test");
     try {
-        // FIX: Cast client to 'any' to bypass missing/incorrect types for the 'pg' package.
-        const client: any = await dbPool.connect();
+        const client = await dbPool.connect();
         console.log("LOG: Database client connected.");
         const result = await client.query('SELECT NOW()');
         client.release();
@@ -108,7 +106,8 @@ const financialDataSchema = {
     required: ['period', 'totalRevenue', 'netIncome', 'totalAssets', 'totalLiabilities', 'equity', 'cashFromOps']
 };
 
-app.post('/api/parse', async (req: Request, res: Response) => {
+// FIX: Use express.Request and express.Response for correct typing.
+app.post('/api/parse', async (req: express.Request, res: express.Response) => {
     const { statements } = req.body;
     if (!statements || !statements.balanceSheet || !statements.incomeStatement || !statements.cashFlow) {
         return res.status(400).json({ error: 'Missing financial statements data.' });
@@ -144,7 +143,8 @@ const analysisSchema = {
     required: ['summary', 'recommendations']
 };
 
-app.post('/api/analyze', async (req: Request, res: Response) => {
+// FIX: Use express.Request and express.Response for correct typing.
+app.post('/api/analyze', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Analyze this financial data for a business. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with a 'summary' and 'recommendations'.`;
@@ -184,7 +184,8 @@ const healthScoreSchema = {
     required: ['score', 'rating', 'strengths', 'weaknesses']
 };
 
-app.post('/api/health-score', async (req: Request, res: Response) => {
+// FIX: Use express.Request and express.Response for correct typing.
+app.post('/api/health-score', async (req: express.Request, res: express.Response) => {
     const { currentData, previousData, profile } = req.body;
     if (!currentData) return res.status(400).json({ error: 'Missing current financial data.' });
     const prompt = `Calculate a financial health score based on this data. Profile: ${JSON.stringify(profile)}. Current: ${JSON.stringify(currentData)}. Previous: ${JSON.stringify(previousData)}. Provide a JSON response with 'score', 'rating', 'strengths', and 'weaknesses'.`;
@@ -201,7 +202,8 @@ app.post('/api/health-score', async (req: Request, res: Response) => {
     }
 });
 
-app.post('/api/explain-kpi', async (req: Request, res: Response) => {
+// FIX: Use express.Request and express.Response for correct typing.
+app.post('/api/explain-kpi', async (req: express.Request, res: express.Response) => {
     const { kpiName, kpiValue } = req.body;
     if (!kpiName || !kpiValue) return res.status(400).json({ error: 'Missing kpiName or kpiValue.' });
     const prompt = `Explain the KPI "${kpiName}" and a value of "${kpiValue}" simply for a small business owner.`;
@@ -214,13 +216,13 @@ app.post('/api/explain-kpi', async (req: Request, res: Response) => {
     }
 });
 
-app.post('/api/validate-statement', async (req: Request, res: Response) => {
+// FIX: Use express.Request and express.Response for correct typing.
+app.post('/api/validate-statement', async (req: express.Request, res: express.Response) => {
     const { content, expectedType } = req.body;
     if (!content || !expectedType) {
         return res.status(400).json({ error: 'Missing content or expectedType.' });
     }
 
-    // A simpler, more direct prompt asking for a single keyword response.
     const prompt = `Analyze the following financial document text. Respond with ONLY ONE of the following keywords: "BalanceSheet", "IncomeStatement", "CashFlowStatement", or "None".
 
 Consider common synonyms: an Income Statement may be called a "P&L" or "Profit and Loss". A Balance Sheet may be a "Statement of Financial Position".
@@ -234,13 +236,11 @@ ${content.substring(0, 4000)}
 `;
 
     try {
-        // Removed the complex JSON schema for a more reliable plain text response.
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
         });
         
-        // The AI's response is now the keyword itself. Trim any whitespace.
         const classifiedType = (response.text ?? 'None').trim();
 
         const typeMapServer: Record<string, string> = {
@@ -251,7 +251,6 @@ ${content.substring(0, 4000)}
 
         const expectedServerType = typeMapServer[expectedType];
         
-        // Case-insensitive comparison remains as a safeguard.
         const isValid = classifiedType.toLowerCase() === expectedServerType.toLowerCase();
         
         console.log(`LOG: Validation for ${expectedType}. AI classified as: ${classifiedType}. Result: ${isValid}`);
