@@ -28,9 +28,9 @@ FROM node:20-slim
 WORKDIR /app
 
 # Copy only the necessary production artifacts from the builder stage
-COPY --from=builder /app/server/node_modules ./server/node_modules
-COPY --from=builder /app/server/dist ./server/dist
-COPY --from=builder /app/server/package.json ./server/
+COPY --from-builder /app/server/node_modules ./server/node_modules
+COPY --from-builder /app/server/dist ./server/dist
+COPY --from-builder /app/server/package.json ./server/
 
 # Expose the port the app runs on (should match the PORT in the code)
 EXPOSE 8080
