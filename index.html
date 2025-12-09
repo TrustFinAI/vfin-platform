@@ -1,75 +1,83 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VFIN | Financial Health Dashboard</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-            },
-            colors: {
-              'primary': '#0f172a', // slate-900
-              'secondary': '#334155', // slate-700
-              'accent': '#4285F4',
-              'accent-hover': '#3367D6',
-              'neutral': '#1f2937',
-              'base-100': '#ffffff',
-              'info': '#2563eb',
-              'success': '#16a34a',
-              'warning': '#f59e0b',
-              'error': '#ef4444',
-              'kpi-green-bg': '#f0fdf4',
-              'kpi-green-text': '#166534',
-              'kpi-yellow-bg': '#fefce8',
-              'kpi-yellow-text': '#854d0e',
-              'kpi-red-bg': '#fef2f2',
-              'kpi-red-text': '#991b1b',
-            },
-            animation: {
-              'fade-in': 'fadeIn 0.5s ease-out',
-              'slide-in-up': 'slideInUp 0.5s ease-out',
-            },
-            keyframes: {
-              fadeIn: {
-                '0%': { opacity: '0' },
-                '100%': { opacity: '1' },
-              },
-              slideInUp: {
-                '0%': { transform: 'translateY(20px)', opacity: '0' },
-                '100%': { transform: 'translateY(0)', opacity: '1' },
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" href="/favicon.ico" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>VFIN | Financial Health Dashboard</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+          tailwind.config = {
+            theme: {
+              extend: {
+                fontFamily: {
+                  sans: ['Inter', 'sans-serif'],
+                },
+                colors: {
+                  'primary': '#0f172a', // slate-900
+                  'secondary': '#334155', // slate-700
+                  'accent': '#4285F4',
+                  'accent-hover': '#3367D6',
+                  'neutral': '#1f2937',
+                  'base-100': '#ffffff',
+                  'info': '#2563eb',
+                  'success': '#16a34a',
+                  'warning': '#f59e0b',
+                  'error': '#ef4444',
+                  'kpi-green-bg': '#f0fdf4',
+                  'kpi-green-text': '#166534',
+                  'kpi-yellow-bg': '#fefce8',
+                  'kpi-yellow-text': '#854d0e',
+                  'kpi-red-bg': '#fef2f2',
+                  'kpi-red-text': '#991b1b',
+                },
+                animation: {
+                  'fade-in': 'fadeIn 0.5s ease-out',
+                  'slide-in-up': 'slideInUp 0.5s ease-out',
+                },
+                keyframes: {
+                  fadeIn: {
+                    '0%': { opacity: '0' },
+                    '100%': { opacity: '1' },
+                  },
+                  slideInUp: {
+                    '0%': { transform: 'translateY(20px)', opacity: '0' },
+                    '100%': { transform: 'translateY(0)', opacity: '1' },
+                  }
+                }
               }
             }
           }
-        }
-      }
-    </script>
-<script type="importmap">
+        </script>
+    <script type="importmap">
 {
   "imports": {
     "react": "https://aistudiocdn.com/react@^18.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^18.2.0/",
-    "react/": "https://aistudiocdn.com/react@^18.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.1",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
-    "cors": "https://aistudiocdn.com/cors@^2.8.5",
+    "react-dom": "https://aistudiocdn.com/react-dom@^18.2.0",
+    "react-dom/client": "https://aistudiocdn.com/react-dom@^18.2.0/client",
+    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^6.25.1",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^0.1.0-beta.9",
+    "chart.js": "https://aistudiocdn.com/chart.js@^4.4.3",
+    "react-chartjs-2": "https://aistudiocdn.com/react-chartjs-2@^5.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "express": "https://aistudiocdn.com/express@^5.1.0",
+    "cors": "https://aistudiocdn.com/cors@^2.8.5",
     "pg": "https://aistudiocdn.com/pg@^8.16.3",
-    "vite": "https://aistudiocdn.com/vite@^7.2.2"
+    "bcryptjs": "https://aistudiocdn.com/bcryptjs@^3.0.3",
+    "jsonwebtoken": "https://aistudiocdn.com/jsonwebtoken@^9.0.2",
+    "stripe": "https://aistudiocdn.com/stripe@^19.3.1",
+    "vite": "https://aistudiocdn.com/vite@^7.2.2",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
   }
 }
 </script>
-</head>
-  <body class="bg-slate-50">
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
-</html>
+    </head>
+      <body class="bg-slate-50">
+        <div id="root"></div>
+        <script type="module" src="/index.tsx"></script>
+      </body>
+    </html>
