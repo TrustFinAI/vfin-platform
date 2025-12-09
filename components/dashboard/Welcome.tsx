@@ -1,25 +1,38 @@
-
 import React, { useState, FormEvent } from 'react';
-import { ClientProfile } from '../../types';
+import { ClientProfile, User } from '../../types';
+import { saveClientProfile } from '../../services/vcpaService';
+import Spinner from '../ui/Spinner';
 
 interface WelcomeProps {
-    onProfileSave: (profile: ClientProfile) => void;
+    onProfileSave: () => void;
+    currentUser: User;
 }
 
-const Welcome: React.FC<WelcomeProps> = ({ onProfileSave }) => {
+const Welcome: React.FC<WelcomeProps> = ({ onProfileSave, currentUser }) => {
     const [profile, setProfile] = useState<ClientProfile>({
-        industry: 'Technology / SaaS',
-        businessModel: 'B2B',
-        primaryGoal: 'Aggressive Growth',
-        companyLogoUrl: '',
+        industry: currentUser.clientProfile?.industry || 'Technology / SaaS',
+        businessModel: currentUser.clientProfile?.businessModel || 'B2B',
+        primaryGoal: currentUser.clientProfile?.primaryGoal || 'Aggressive Growth',
     });
+    const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(currentUser.companyLogoUrl || null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const handleSubmit = (e: FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
-        onProfileSave(profile);
+        setIsLoading(true);
+        setError(null);
+        try {
+            await saveClientProfile(profile, companyLogoUrl);
+            onProfileSave();
+        } catch(err: any) {
+            setError(err.message);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const { name, value } = e.target;
         setProfile(prev => ({...prev, [name]: value}));
     };
@@ -29,7 +42,7 @@ const Welcome: React.FC<WelcomeProps> = ({ onProfileSave }) => {
         if (file) {
             const reader = new FileReader();
             reader.onloadend = () => {
-                setProfile(prev => ({...prev, companyLogoUrl: reader.result as string}));
+                setCompanyLogoUrl(reader.result as string);
             };
             reader.readAsDataURL(file);
         }
@@ -84,8 +97,8 @@ const Welcome: React.FC<WelcomeProps> = ({ onProfileSave }) => {
                   <label className="block text-sm font-medium text-gray-700">Company Logo (Optional)</label>
                   <div className="mt-1 flex items-center space-x-4">
                     <div className="flex-shrink-0 h-16 w-16 rounded-md bg-slate-100 flex items-center justify-center overflow-hidden">
-                      {profile.companyLogoUrl ? (
-                        <img src={profile.companyLogoUrl} alt="Logo Preview" className="h-full w-full object-contain" />
+                      {companyLogoUrl ? (
+                        <img src={companyLogoUrl} alt="Logo Preview" className="h-full w-full object-contain" />
                       ) : (
                          <svg className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -99,13 +112,15 @@ const Welcome: React.FC<WelcomeProps> = ({ onProfileSave }) => {
                   </div>
                 </div>
 
+                {error && <p className="text-xs text-center text-red-600">{error}</p>}
 
                 <div className="text-center pt-4">
                      <button
                         type="submit"
-                        className="w-full md:w-auto inline-flex items-center justify-center px-10 py-4 border border-transparent text-lg font-medium rounded-full shadow-sm text-white bg-accent hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary transition-all transform hover:scale-105"
+                        disabled={isLoading}
+                        className="w-full md:w-auto inline-flex items-center justify-center px-10 py-4 border border-transparent text-lg font-medium rounded-full shadow-sm text-white bg-accent hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary transition-all transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed"
                     >
-                        Save & Continue to Upload
+                        {isLoading ? <Spinner size="sm" /> : "Save & Continue to Upload"}
                     </button>
                 </div>
             </form>

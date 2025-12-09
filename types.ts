@@ -1,4 +1,20 @@
-import React from 'react';
+import type { ReactElement, SVGProps } from 'react';
+
+export interface User {
+  companyName: string;
+  email: string;
+  subscriptionTier: 'free' | 'starter' | 'growth' | 'vcfo' | 'vwa';
+  subscriptionStatus: 'active' | 'canceled' | 'incomplete' | 'free' | 'past_due';
+  companyLogoUrl?: string | null;
+  clientProfile?: ClientProfile | null;
+}
+
+export interface Product {
+  name: string;
+  description: string;
+  tier_name: string;
+  stripe_price_id: string;
+}
 
 export interface Kpi {
   label: string;
@@ -6,7 +22,7 @@ export interface Kpi {
   unit?: '%' | '$';
   description?: string;
   color?: 'green' | 'yellow' | 'red' | 'blue' | 'default';
-  icon: React.ReactElement<React.SVGProps<SVGSVGElement>>;
+  icon: ReactElement<SVGProps<SVGSVGElement>>;
   modalExplanation?: string; // For fixed explanations, no AI call
 }
 
@@ -26,7 +42,6 @@ export interface ClientProfile {
   industry: string;
   businessModel: 'B2B' | 'B2C' | 'D2C' | 'Hybrid';
   primaryGoal: 'Aggressive Growth' | 'Maximize Profitability' | 'Maintain Stability';
-  companyLogoUrl?: string;
 }
 
 export interface ParsedFinancialData {
@@ -47,6 +62,11 @@ export interface ParsedFinancialData {
   accountsReceivable?: number;
   accountsPayable?: number;
   topExpenses?: ExpenseItem[];
+  // Industry-specific KPIs
+  MRR?: number; // SaaS
+  CAC?: number; // SaaS
+  inventory?: number; // Retail
+  inventoryTurnover?: number; // Retail
 }
 
 export interface AiAnalysisData {
@@ -55,8 +75,64 @@ export interface AiAnalysisData {
 }
 
 export interface FinancialPeriodData {
-  id: string;
+  id: number;
+  periodName: string;
   parsedData: ParsedFinancialData;
   aiAnalysis: AiAnalysisData;
   financialHealthScore?: FinancialHealthScore;
+}
+
+// --- vCFO Types ---
+export interface ScenarioInput {
+  name: string;
+  revenueChange: number; // Percentage
+  cogsChange: number; // Percentage
+  opexChange: number; // Percentage
+  newMonthlyDebt: number; // Absolute value
+  notes?: string;
+}
+
+export interface ScenarioResult {
+  projectedNetIncome: number;
+  projectedCashFlow: number;
+  commentary: string;
+}
+
+export interface ScenarioData extends ScenarioInput {
+  id: number;
+  userId: number;
+  createdAt: string;
+  result: ScenarioResult;
+}
+
+// --- VWA Types ---
+export interface VWAOnboardingData {
+  ownershipStake: number;
+  freedomGoal: string;
+  targetAge: number;
+  targetNetWorth: number;
+}
+
+export interface ExternalAccount {
+  type: 'Investment' | 'Retirement' | 'Bank Account';
+  name: string;
+  balance: number;
+}
+
+export interface VWAData extends VWAOnboardingData {
+  businessValue: number;
+  ownerEquity: number;
+  externalAccounts: ExternalAccount[];
+}
+
+export interface OptimizerResult {
+    takeHomePay: number;
+    totalTaxBurden: number;
+    businessCashImpact: 'Safe' | 'Caution' | 'Risky';
+    coachAdvice: string;
+}
+
+export interface FreedomPlan {
+    baseProjection: { year: number, netWorth: number }[];
+    scenarioProjection: { year: number, netWorth: number }[] | null;
 }

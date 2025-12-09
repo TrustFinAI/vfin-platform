@@ -1,6 +1,5 @@
-
-import React, { useRef, useState, useCallback } from 'react';
-import { validateStatementFile } from '../../services/geminiService';
+import React, { useRef, useState } from 'react';
+import { validateStatementFile } from '../../services/vcpaService';
 import Spinner from '../ui/Spinner';
 
 type StatementType = 'balanceSheet' | 'incomeStatement' | 'cashFlow';
@@ -51,27 +50,9 @@ const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading
     reader.onload = async (event) => {
       const content = event.target?.result as string;
       
-      // Set to verifying state immediately
-      setFiles(prev => ({ 
-          ...prev, 
-          [type]: { 
-              name: file.name, 
-              content, 
-              status: 'verifying'
-          } 
-      }));
-
-      // Call backend for validation
+      setFiles(prev => ({ ...prev, [type]: { name: file.name, content, status: 'verifying' } }));
       const isVerified = await validateStatementFile(content, type);
-
-      setFiles(prev => ({ 
-          ...prev, 
-          [type]: { 
-              name: file.name, 
-              content, 
-              status: isVerified ? 'verified' : 'failed'
-          } 
-      }));
+      setFiles(prev => ({ ...prev, [type]: { name: file.name, content, status: isVerified ? 'verified' : 'failed' } }));
     };
     reader.readAsText(file);
   };
@@ -94,9 +75,9 @@ const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading
 
   const getVerificationMessage = (type: StatementType) => {
       switch (type) {
-          case 'balanceSheet': return "This doesn't look like a Balance Sheet. Please check the file.";
-          case 'incomeStatement': return "This doesn't look like an Income Statement. Please check the file.";
-          case 'cashFlow': return "This doesn't look like a Cash Flow Statement. Please check the file.";
+          case 'balanceSheet': return "This doesn't look like a Balance Sheet.";
+          case 'incomeStatement': return "This doesn't look like an Income Statement.";
+          case 'cashFlow': return "This doesn't look like a Cash Flow Statement.";
       }
   };
 
@@ -113,15 +94,11 @@ const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading
         <div className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg transition-all duration-300 min-h-[200px] ${borderColor}`}>
             <input type="file" ref={fileInputRefs[type]} onChange={(e) => handleFileChange(e, type)} className="hidden" accept=".txt,.csv,text/plain,text/csv" />
             
-            {status === 'verifying' && (
-                <Spinner size="sm" text="Verifying..." />
-            )}
+            {status === 'verifying' && <Spinner size="sm" text="Verifying..." />}
 
             {status === 'verified' && (
                 <>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-green-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
                     <p className="mt-2 text-sm font-medium text-gray-700">{title}</p>
                     <p className="text-xs text-gray-500 truncate max-w-full px-2">{fileState?.name}</p>
                     <button onClick={() => handleUploadClick(type)} className="mt-2 text-xs text-primary hover:underline">Change file</button>
@@ -129,24 +106,27 @@ const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesReady, isLoading
             )}
 
             {status === 'failed' && (
-                 <>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="mt-2 text-sm font-medium text-red-700 text-center">{getVerificationMessage(type)}</p>
+                 <div className="relative group flex flex-col items-center text-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <p className="mt-2 text-sm font-medium text-red-700">{getVerificationMessage(type)}</p>
                     <button onClick={() => handleUploadClick(type)} className="mt-2 text-xs text-primary hover:underline">Upload Correct File</button>
-                </>
+                    <div className="absolute bottom-full mb-2 hidden group-hover:block w-64 bg-slate-800 text-white text-xs rounded-lg py-2 px-3 z-10">
+                        Common reasons for failure:
+                        <ul className="list-disc list-inside text-left mt-1">
+                            <li>Incorrect file format (must be .txt or .csv)</li>
+                            <li>File content does not match statement type</li>
+                            <li>File is empty or corrupted</li>
+                        </ul>
+                        <svg className="absolute text-slate-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                    </div>
+                </div>
             )}
 
             {status === 'unverified' && (
                 <>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
                     <p className="mt-2 text-sm font-medium text-gray-700">{title}</p>
-                    <button onClick={() => handleUploadClick(type)} className="mt-2 text-primary font-semibold hover:text-secondary">
-                        Upload File
-                    </button>
+                    <button onClick={() => handleUploadClick(type)} className="mt-2 text-primary font-semibold hover:text-secondary">Upload File</button>
                 </>
             )}
         </div>
