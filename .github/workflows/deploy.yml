@@ -40,13 +40,9 @@ jobs:
       - name: Build Frontend Application
         run: npm run build
 
-      # This is the corrected, official Firebase action. It uses the Google credentials from the 'auth' step automatically.
+      # Updated: Use standard Firebase CLI which uses the credentials from the 'auth' step above.
       - name: Deploy Frontend to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          projectId: vfin-prod-instance
-          channelId: live
+        run: npx firebase deploy --only hosting --project vfin-prod-instance
 
   # This job builds and deploys the Node.js backend. It runs in parallel with the frontend job.
   deploy-backend:
